@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# uv / pip
+.uv-cache/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Build / dist
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Run outputs
+runresults/
+output/
+*.jsonl
+
+# Plots / TeX intermediates
+*.pdf
+*.png
+*.jpeg
+*.jpg
+*.aux
+*.log
+*.out
+
+# Editor / OS
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
