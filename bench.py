@@ -10,6 +10,7 @@ import random
 import socket
 import subprocess
 import time
+from functools import partial
 from multiprocessing import Pool
 from typing import Literal, Optional, TypedDict
 
@@ -160,12 +161,12 @@ def fp_problems() -> list[Problem]:
 
 def sampled_problems(n: Optional[int]) -> list[Problem]:
     probs = fp_problems()
-    if n is None:
+    if n is None or n >= len(probs):
         return probs
     return random.Random(SEED).sample(probs, n)
 
 
-def run_one(cfg: Config, timeout_sec: int, memout_mb: int, outdir: pathlib.Path) -> None:
+def run_one(cfg: Config, timeout_sec: int, memout_mb: int, outdir: pathlib.Path) -> str:
     cmd = tool_command(cfg["tool"], cfg["path"])
     cwd = tool_cwd(cfg["tool"])
     t0 = time.time()
@@ -191,10 +192,7 @@ def run_one(cfg: Config, timeout_sec: int, memout_mb: int, outdir: pathlib.Path)
     key = hashlib.sha1(cfg["benchmark"].encode()).hexdigest()[:16]
     fpath = outdir / f"{cfg['tool']}__r{cfg['run']}__{key}.jsonl"
     fpath.write_text(json.dumps(record) + "\n")
-
-
-def _run_one_star(a: tuple[Config, int, int, pathlib.Path]) -> None:
-    run_one(*a)
+    return f"{cfg['tool']} r{cfg['run']} {cfg['benchmark']}"
 
 
 def run_many(
@@ -205,11 +203,11 @@ def run_many(
     outdir: pathlib.Path,
 ) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
-    args = [(c, timeout_sec, memout_mb, outdir) for c in configs]
+    worker = partial(run_one, timeout_sec=timeout_sec, memout_mb=memout_mb, outdir=outdir)
     total = len(configs)
     with Pool(nproc) as pool:
-        for i, _ in enumerate(pool.imap_unordered(_run_one_star, args), 1):
-            print(f"[{i}/{total}]")
+        for i, label in enumerate(pool.imap_unordered(worker, configs), 1):
+            print(f"[{i}/{total}] {label}")
 
 
 def git_hash() -> str:
