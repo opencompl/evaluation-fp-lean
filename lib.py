@@ -58,7 +58,10 @@ def root_dir() -> pathlib.Path:
     return  pathlib.Path(subprocess.check_output(['git', 'rev-parse', '--show-toplevel']).decode('utf-8').strip())
 
 def git_hash() -> str:
-    return subprocess.check_output(['git', 'rev-parse', 'HEAD']).decode('utf-8').strip()
+    try:
+        return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
+    except Exception:
+        return "unknown"
 
 def machine_uname() -> platform.uname_result:
     return platform.uname()

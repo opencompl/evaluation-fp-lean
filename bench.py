@@ -8,7 +8,6 @@ import math
 import pathlib
 import random
 import socket
-import subprocess
 import time
 from functools import partial
 from multiprocessing import Pool
@@ -208,10 +207,3 @@ def run_many(
     with Pool(nproc) as pool:
         for i, label in enumerate(pool.imap_unordered(worker, configs), 1):
             print(f"[{i}/{total}] {label}")
-
-
-def git_hash() -> str:
-    try:
-        return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode().strip()
-    except Exception:
-        return "unknown"

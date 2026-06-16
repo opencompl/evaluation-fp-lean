@@ -45,10 +45,11 @@ RUN uv run echo "setup deps"
 RUN git clone https://www.github.com/opencompl/fp-lean.git && cd fp-lean && git checkout master
 RUN cd fp-lean && lake build
 
-# copy benchmarks last.
+# Copy and extract benchmarks last: this is the largest layer, so keeping it at
+# the end maximizes cache reuse for the earlier build steps.
 COPY datasets/*.tar.zst datasets/
-RUN for f in pbv-2025-benchmarks/*.tar.zst; do \
-        tar --zstd -xf "$f" -C datasets/; \
+RUN for f in datasets/*.tar.zst; do \
+        tar --use-compress-program=unzstd -xf "$f" -C datasets/; \
     done
 
 CMD /usr/bin/fish

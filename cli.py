@@ -9,6 +9,7 @@ import time
 from typing import Callable
 
 import bench
+import lib
 import plot
 
 
@@ -51,7 +52,7 @@ def do_run(opts: argparse.Namespace, config_name: str, configs_fn: ConfigFn) -> 
         "memout_mb": opts.memout_mb,
         "seed": bench.SEED,
         "timestamp_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-        "git_hash": bench.git_hash(),
+        "git_hash": lib.git_hash(),
     }
     (outdir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
     bench.write_config_tex(outdir, opts)

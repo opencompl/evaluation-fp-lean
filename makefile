@@ -1,56 +1,51 @@
-.PHONY: run-on-host podman run cleanplot cleandata lint camera-ready plot-camera-ready
+# Makefile for the fp-lean evaluation harness.
+#
+# Common knobs can be overridden on the command line, e.g.
+#   make run NPROBLEMS=50 RUNS=3 GUID=myrun
 
-camera-ready: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./run-camera-ready.sh'
+CLI         := ./cli.py
+CONFIG      := cactus
+GUID        := latest
+NPROBLEMS   :=
+RUNS        := 2
+TIMEOUT_SEC := 600
+MEMOUT_MB   := 16000
+NPROC       := 4
 
-plot-camera-ready: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./plot-camera-ready.sh'
+DATASET_DIR     := datasets
+DATASET_TARBALL := $(DATASET_DIR)/FP.tar.zst
+DATASET_OUT     := $(DATASET_DIR)/FP
 
-paper-plots: podman make-alive make-sextzext make-rover make-everybench
+DOCKER_IMAGE := fp-lean-eval
 
-run-all: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./run-all.sh'
+# Assemble the optional --nproblems flag only when NPROBLEMS is set.
+NPROBLEMS_FLAG := $(if $(NPROBLEMS),--nproblems $(NPROBLEMS),)
 
-plot-all: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./plot-all.sh'
+RUN_FLAGS := --guid $(GUID) $(NPROBLEMS_FLAG) --runs $(RUNS) \
+             --timeout-sec $(TIMEOUT_SEC) --memout-mb $(MEMOUT_MB) --nproc $(NPROC)
 
-make-everybench: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-everybench.sh'
+.PHONY: help dataset run plot all docker-build clean
 
-make-bmc-delta: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-bmc.sh && cd debug && ./compare-bmc-mono-and-naive.sh'
+help: ## Show this help
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
+		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
 
-make-kick-the-tires: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-kick-the-tires.sh'
+$(DATASET_OUT): $(DATASET_TARBALL)
+	tar --use-compress-program=unzstd -xf $(DATASET_TARBALL) -C $(DATASET_DIR)
 
-make-hero: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-hero.sh'
+dataset: $(DATASET_OUT) ## Extract the benchmark dataset (datasets/FP/)
 
-make-naivebmc-all: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-naivebmc-all.sh'
+run: dataset ## Run the benchmark configuration (override CONFIG=…)
+	$(CLI) $(CONFIG) --run $(RUN_FLAGS)
 
-make-dry-run: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-dry-run.sh'
+plot: ## Plot results for an existing run (override GUID=…)
+	$(CLI) $(CONFIG) --plot --guid $(GUID)
 
-shell: podman
-	./docker-mount-script-and-run.sh fish
+all: dataset ## Run and plot in one invocation
+	$(CLI) $(CONFIG) --run --plot $(RUN_FLAGS)
 
-make-test-timeout-memout:
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-test-timeout-memout.sh'
+docker-build: ## Build the Docker image
+	docker build -t $(DOCKER_IMAGE) .
 
-make-sextzext: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-sextzext.sh'
-
-make-alive: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-alive.sh'
-
-make-rover: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./make-rover.sh'
-
-plot-alive: podman
-	./docker-mount-script-and-run.sh fish -c 'cd scripts && ./plot-alive.sh'
-
-podman:
-	podman build . -t practical-misplace-monarch
-
-
+clean: ## Remove run outputs
+	rm -rf runresults/*
