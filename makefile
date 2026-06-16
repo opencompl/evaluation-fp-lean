@@ -26,9 +26,8 @@ RUN_FLAGS := --guid $(GUID) $(NPROBLEMS_FLAG) --runs $(RUNS) \
 
 .PHONY: help dataset run plot all docker-build clean
 
-help: ## Show this help
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
-		| awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
+plot: ## Plot results for an existing run (override GUID=…)
+	$(CLI) $(CONFIG) --plot --guid $(GUID)
 
 $(DATASET_OUT): $(DATASET_TARBALL)
 	tar --use-compress-program=unzstd -xf $(DATASET_TARBALL) -C $(DATASET_DIR)
@@ -38,8 +37,6 @@ dataset: $(DATASET_OUT) ## Extract the benchmark dataset (datasets/FP/)
 run: dataset ## Run the benchmark configuration (override CONFIG=…)
 	$(CLI) $(CONFIG) --run $(RUN_FLAGS)
 
-plot: ## Plot results for an existing run (override GUID=…)
-	$(CLI) $(CONFIG) --plot --guid $(GUID)
 
 all: dataset ## Run and plot in one invocation
 	$(CLI) $(CONFIG) --run --plot $(RUN_FLAGS)
