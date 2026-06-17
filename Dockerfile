@@ -42,8 +42,11 @@ RUN uv run echo "setup deps"
 
 
 # RUN rm -rf /var/lib/apt/lists/*
-RUN git clone https://www.github.com/opencompl/fp-lean.git && cd fp-lean && git checkout master
-RUN cd fp-lean && lake build
+# Build Leanwuzla (the SMT-solver CLI the harness drives as the `fplean` tool).
+# It pulls fp-lean in as a Lake dependency, so no separate fp-lean checkout is needed.
+RUN git clone https://github.com/opencompl/Leanwuzla.git && \
+    cd Leanwuzla && git checkout 908b037964d9e51020f65ef8a70a909c717ba5ae
+RUN cd Leanwuzla && lake build
 
 # Copy and extract benchmarks last: this is the largest layer, so keeping it at
 # the end maximizes cache reuse for the earlier build steps.
