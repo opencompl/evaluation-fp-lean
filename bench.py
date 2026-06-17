@@ -21,7 +21,8 @@ ToolName = Literal["bitwuzla", "fplean"]
 
 SEED: int = 0x5FE7
 BITWUZLA_PATH: pathlib.Path = pathlib.Path("../bitwuzla/build/src/main/bitwuzla")
-FPLEAN_PATH: pathlib.Path = pathlib.Path("../lean-mlir/Blase/.lake/build/bin/blasewuzla")
+LEANWUZLA_DIR: pathlib.Path = pathlib.Path("Leanwuzla")
+FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 FP_DATASET_DIR: pathlib.Path = pathlib.Path("datasets/FP")
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
@@ -129,10 +130,12 @@ def write_machine_data_tex(folder: pathlib.Path) -> None:
     (folder / "triple.tex").write_text("\n".join(lines) + "\n")
 
 
-def tool_command(tool: ToolName, path: pathlib.Path) -> list[str]:
+def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[str]:
     if tool == "fplean":
+        # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
+        # match the harness limit so it isn't cut off before bitwuzla is.
         return ["lake", "env", str(FPLEAN_PATH.absolute()),
-                "--elimIte", "--preconditionSub", "--elimSub",
+                "--timeout", str(timeout_sec),
                 str(path.absolute())]
     if tool == "bitwuzla":
         return [str(BITWUZLA_PATH.absolute()), str(path.absolute())]
@@ -141,7 +144,8 @@ def tool_command(tool: ToolName, path: pathlib.Path) -> list[str]:
 
 def tool_cwd(tool: ToolName) -> Optional[str]:
     if tool == "fplean":
-        return str(FPLEAN_PATH.parent.absolute())
+        # run from the Leanwuzla project root so `lake env` finds the lakefile/oleans.
+        return str(LEANWUZLA_DIR.absolute())
     return None
 
 
@@ -166,7 +170,7 @@ def sampled_problems(n: Optional[int]) -> list[Problem]:
 
 
 def run_one(cfg: Config, timeout_sec: int, memout_mb: int, outdir: pathlib.Path) -> str:
-    cmd = tool_command(cfg["tool"], cfg["path"])
+    cmd = tool_command(cfg["tool"], cfg["path"], timeout_sec)
     cwd = tool_cwd(cfg["tool"])
     t0 = time.time()
     r = run_with_limits(cmd, timeout_sec=timeout_sec, memout_mb=memout_mb, cwd=cwd)
