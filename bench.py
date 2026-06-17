@@ -19,14 +19,33 @@ from runwithlimits import run_with_limits
 
 ToolName = Literal["bitwuzla", "fplean"]
 
-SEED: int = 0x5FE7
+SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 BITWUZLA_PATH: pathlib.Path = pathlib.Path("../bitwuzla/build/src/main/bitwuzla")
 LEANWUZLA_DIR: pathlib.Path = pathlib.Path("Leanwuzla")
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
-FP_DATASET_DIR: pathlib.Path = pathlib.Path("datasets/FP")
+FP_DATASET_DIR: pathlib.Path = pathlib.Path("datasets/non-incremental/FP")
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
 TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
+
+# Benchmark families available under FP_DATASET_DIR, with their problem counts.
+# Every family is uniformly quantified or quantifier-free:
+#
+#   20170501-Heizmann-UltimateAutomizer     1 problem,    all quantified
+#   2019-Preiner                            2415 problems, all quantified
+#   20190429-UltimateAutomizerSvcomp2019    8 problems,   all quantified
+#   20200911-Pine                           245 problems, quantifier-free
+#
+# The bitblasting `fplean` backend cannot handle quantifiers (exists/forall), so
+# we restrict to the quantifier-free families. Copy entries from ALL_FAMILIES
+# into FAMILIES to include more.
+ALL_FAMILIES: list[str] = [
+    "20170501-Heizmann-UltimateAutomizer",
+    "2019-Preiner",
+    "20190429-UltimateAutomizerSvcomp2019",
+    "20200911-Pine",
+]
+FAMILIES: list[str] = ["20200911-Pine"]
 
 tool2color: dict[ToolName, str] = {"bitwuzla": "#FFAB40", "fplean": "#2E7D32"}
 tool2label: dict[ToolName, str] = {"bitwuzla": "Bitwuzla", "fplean": "FP-Lean"}
@@ -134,8 +153,11 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
     if tool == "fplean":
         # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
         # match the harness limit so it isn't cut off before bitwuzla is.
+        # --maxHeartbeats is raised far above the default (200000) so that simp
+        # preprocessing isn't aborted before the wall-clock timeout is reached.
         return ["lake", "env", str(FPLEAN_PATH.absolute()),
                 "--timeout", str(timeout_sec),
+                "--maxHeartbeats", "9999999",
                 str(path.absolute())]
     if tool == "bitwuzla":
         return [str(BITWUZLA_PATH.absolute()), str(path.absolute())]
@@ -157,6 +179,8 @@ def fp_problems() -> list[Problem]:
                 p = sub / f
                 rel = p.relative_to(FP_DATASET_DIR)
                 family = rel.parts[0] if len(rel.parts) > 1 else ""
+                if family not in FAMILIES:
+                    continue
                 out.append({"family": family, "benchmark": str(rel), "path": p})
     out.sort(key=lambda d: d["benchmark"])
     return out

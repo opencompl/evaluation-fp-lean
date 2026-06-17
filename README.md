@@ -43,13 +43,22 @@ plus `cactus.tex` to `runresults/<guid>/plots/<plot-name>/` (unless `--outdir`).
 Defined in `cli.py`:
 
 - `cactus` — both solvers × `--runs` × a deterministically sampled subset of
-  `datasets/FP/` (seed = `bench.SEED`). Produces a cactus plot, geomean-averaged
-  over runs.
+  `datasets/non-incremental/FP/` (seed = `bench.SEED`). Produces a cactus plot,
+  geomean-averaged over runs.
 
 ## Solvers
 
 Two: `bitwuzla` (external binary) and `fplean` (lean-based). Paths in `bench.py`
-(`BITWUZLA_PATH`, `FPLEAN_PATH`).
+(`BITWUZLA_PATH`, `FPLEAN_PATH`). Both are built from source in the Docker image
+(see `Dockerfile`).
+
+> **Paper note — Bitwuzla is built with `--fpexp` (experimental FP formats).**
+> The benchmark suite is dominated by non-standard floating-point formats (e.g.
+> `3_5` minifloats). Bitwuzla only supports `Float16/32/64/128` unless built with
+> `./configure.py --fpexp`, which enables *all* formats. Upstream documents these
+> experimental formats as "use at your own risk" due to known issues in SymFPU,
+> so bitwuzla results on non-standard formats carry that soundness caveat and
+> should be reported as such.
 
 ## Dataset
 
@@ -59,4 +68,5 @@ Two: `bitwuzla` (external binary) and `fplean` (lean-based). Paths in `bench.py`
 tar --use-compress-program=unzstd -xf datasets/FP.tar.zst -C datasets/
 ```
 
-before running. Expected layout: `datasets/FP/<family>/<problem>.smt2`.
+The tarball unpacks to `datasets/non-incremental/FP/<family>/<problem>.smt2`,
+which is what `bench.FP_DATASET_DIR` points at.
