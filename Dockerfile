@@ -20,7 +20,9 @@ ENV PATH="/root/.local/bin:${PATH}"
 # Set working directory
 WORKDIR /workspace
 
-RUN uv venv /docker-venv
+# The project requires Python >=3.13, but ubuntu:24.04 ships 3.12. Let uv
+# fetch a managed 3.13 interpreter and build the venv from it.
+RUN uv venv --python 3.13 /docker-venv
 ENV UV_PYTHON=/docker-venv/bin/python
 
 # prevents CI from complaining about shared directories
@@ -36,17 +38,36 @@ RUN apt install fish -y
 RUN apt install vim -y
 RUN apt install zip unzip -y
 
-COPY pyproject.toml uv.lock README.md *.py .
-COPY datasets/ datasets/
+# Bitwuzla build dependencies. Noble's GMP (6.3.0) and MPFR (4.2.1) satisfy
+# bitwuzla's >=6.3 / >=4.2.1 requirements; CaDiCaL and SymFPU are fetched by
+# configure.py automatically.
+RUN apt-get install -y libgmp-dev libmpfr-dev meson ninja-build pkg-config
+
+# Install the harness's Python deps. Copy only the files uv needs (not the
+# harness code) so that editing the code later does not invalidate this layer.
+COPY pyproject.toml uv.lock README.md ./
 RUN uv run echo "setup deps"
 
-
-# RUN rm -rf /var/lib/apt/lists/*
 # Build Leanwuzla (the SMT-solver CLI the harness drives as the `fplean` tool).
 # It pulls fp-lean in as a Lake dependency, so no separate fp-lean checkout is needed.
 RUN git clone https://github.com/opencompl/Leanwuzla.git && \
     cd Leanwuzla && git checkout 908b037964d9e51020f65ef8a70a909c717ba5ae
 RUN cd Leanwuzla && lake build
+
+# Build Bitwuzla (the `bitwuzla` baseline tool) from source at a pinned commit.
+# bench.BITWUZLA_PATH expects the binary at /bitwuzla/build/src/main/bitwuzla.
+# Built after Leanwuzla so a bitwuzla bump does not bust the Lean build cache.
+# --fpexp enables the non-standard FP formats (e.g. 3_5 minifloats) that make up
+# most of this dataset; without it bitwuzla rejects them as unsupported.
+RUN git clone https://github.com/bitwuzla/bitwuzla.git /bitwuzla && \
+    cd /bitwuzla && \
+    git checkout c32bd4be7a7f93529e1d3e0d9f508ae5e4c44037 && \
+    ./configure.py --fpexp && \
+    cd build && ninja
+
+# Copy the harness code last: edits here are cheap and do not bust the expensive
+# bitwuzla / Leanwuzla build layers above.
+COPY *.py ./
 
 # Copy and extract benchmarks last: this is the largest layer, so keeping it at
 # the end maximizes cache reuse for the earlier build steps.
