@@ -42,7 +42,7 @@ all: dataset ## Run and plot in one invocation
 	$(CLI) $(CONFIG) --run --plot $(RUN_FLAGS)
 
 docker-build: ## Build the Docker image
-	docker build -t $(DOCKER_IMAGE) .
+	podman build -t $(DOCKER_IMAGE) .
 
 clean: ## Remove run outputs
 	rm -rf runresults/*
