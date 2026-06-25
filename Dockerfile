@@ -3,7 +3,7 @@ FROM ubuntu:24.04
 
 # Install tools (e.g., Python, build-essential, sed, etc.)
 RUN apt-get update && \
-    apt-get install -y curl wget build-essential clang cmake curl git python3 python3-pip unzip git gettext
+    apt-get install -y curl wget build-essential clang cmake curl git python3 python3-pip unzip git gettext fish
 
 # Install uv (assuming it's Python-based, via pip)
 RUN curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -34,7 +34,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN apt install zsh -y
 RUN apt install zstd -y
-RUN apt install fish -y
+# RUN apt install fish -y
 RUN apt install vim -y
 RUN apt install zip unzip -y
 
@@ -68,6 +68,12 @@ RUN git clone https://github.com/bitwuzla/bitwuzla.git /bitwuzla && \
 # Copy the harness code last: edits here are cheap and do not bust the expensive
 # bitwuzla / Leanwuzla build layers above.
 COPY *.py ./
+COPY *.sh ./
+COPY *.md ./
+COPY pyproject.toml ./
+COPY uv.lock ./
+COPY makefile ./
+COPY .git/ ./
 
 # Copy and extract benchmarks last: this is the largest layer, so keeping it at
 # the end maximizes cache reuse for the earlier build steps.
