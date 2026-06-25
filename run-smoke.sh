@@ -17,7 +17,7 @@ MEMOUT_MB="${MEMOUT_MB:-8000}"
 NPROC="${NPROC:-4}"
 
 exec ./docker-mount-script-and-run.sh \
-    uv run ./cli.py cactus --run \
+    uv run ./cli.py cactus --run --plot \
         --guid "$GUID" \
         --nproblems "$NPROBLEMS" \
         --runs "$RUNS" \
