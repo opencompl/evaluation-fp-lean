@@ -50,9 +50,10 @@ RUN uv run echo "setup deps"
 
 # Build Leanwuzla (the SMT-solver CLI the harness drives as the `fplean` tool).
 # It pulls fp-lean in as a Lake dependency, so no separate fp-lean checkout is needed.
-RUN git clone https://github.com/opencompl/Leanwuzla.git && \
-    cd Leanwuzla && git checkout 908b037964d9e51020f65ef8a70a909c717ba5ae
-RUN cd Leanwuzla && lake build
+COPY leanwuzla/ leanwuzla/
+RUN cd leanwuzla && git clean -xf .
+RUN cd leanwuzla && git checkout 
+RUN cd leanwuzla && lake build
 
 # Build Bitwuzla (the `bitwuzla` baseline tool) from source at a pinned commit.
 # bench.BITWUZLA_PATH expects the binary at /bitwuzla/build/src/main/bitwuzla.
