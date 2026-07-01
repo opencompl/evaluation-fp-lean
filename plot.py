@@ -30,9 +30,14 @@ def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
     ok = not (r["is_timeout"] or r["is_memout"] or r["is_exception"])
     tool = r["tool"]
     if tool == "fplean":
-        is_unsat = ok and r["returncode"] == 20
-        is_sat = ok and r["returncode"] == 10
-        m = TIME_MS_RE.search(r["stdout"] or "")
+        # leanwuzla reports its verdict as `sat`/`unsat` on stdout and exits 0
+        # (it does not use the 10/20 SMT-COMP exit codes). Failures such as the
+        # "potentially spurious counterexample" abstraction error print neither
+        # token (and exit non-zero), so they count as unsolved, not sat/unsat.
+        so = r["stdout"] or ""
+        is_unsat = ok and "unsat" in so
+        is_sat = ok and "sat" in so and "unsat" not in so
+        m = TIME_MS_RE.search(so)
         elapsed_ms = int(m.group(1)) if (is_unsat and m) else r["wall_elapsed_ms"]
         return {**r, "is_unsat": is_unsat, "is_sat": is_sat, "elapsed_ms": elapsed_ms}
     if tool == "bitwuzla":

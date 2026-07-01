@@ -29,7 +29,13 @@ BITWUZLA_PATH: pathlib.Path = pathlib.Path(
 LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
     os.environ.get("LEANWUZLA_DIR", "Leanwuzla"))
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
-FP_DATASET_DIR: pathlib.Path = pathlib.Path("datasets/non-incremental/FP")
+# Which benchmark tree to walk, and which of its top-level subdirs count as
+# "families". Both are env-overridable so the same harness can target either
+# the FP division (default) or the easier QF_FP/wintersteiger set, e.g.
+#   FP_DATASET_DIR=datasets/non-incremental/QF_FP/wintersteiger \
+#   FAMILIES=lt,gt,eq,abs,add,sub,mul,div ./run-smoke.sh
+FP_DATASET_DIR: pathlib.Path = pathlib.Path(
+    os.environ.get("FP_DATASET_DIR", "datasets/non-incremental/FP"))
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
 TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
@@ -43,15 +49,20 @@ TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
 #   20200911-Pine                           245 problems, quantifier-free
 #
 # The bitblasting `fplean` backend cannot handle quantifiers (exists/forall), so
-# we restrict to the quantifier-free families. Copy entries from ALL_FAMILIES
-# into FAMILIES to include more.
+# the default restricts to the one quantifier-free FP family (Pine). Those are
+# all Float32 with heavy nonlinear arithmetic, so fplean times out on them.
+#
+# For problems both solvers actually finish, point FP_DATASET_DIR at the
+# QF_FP/wintersteiger tree and set FAMILIES to the operations fplean supports:
+# lt, gt, eq, abs, add, sub, mul, div all solve in seconds. (fplean does NOT yet
+# support fp.min/fp.max/fp.sqrt/fp.roundToIntegral, and times out on fp.rem.)
 ALL_FAMILIES: list[str] = [
     "20170501-Heizmann-UltimateAutomizer",
     "2019-Preiner",
     "20190429-UltimateAutomizerSvcomp2019",
     "20200911-Pine",
 ]
-FAMILIES: list[str] = ["20200911-Pine"]
+FAMILIES: list[str] = os.environ.get("FAMILIES", "20200911-Pine").split(",")
 
 tool2color: dict[ToolName, str] = {"bitwuzla": "#FFAB40", "fplean": "#2E7D32"}
 tool2label: dict[ToolName, str] = {"bitwuzla": "Bitwuzla", "fplean": "FP-Lean"}
