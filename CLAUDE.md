@@ -2,29 +2,30 @@
 
 Guidance for working in this repo (the FP-Lean SMT evaluation harness).
 
-## Always run inside the container with podman
+## Run scripts: local vs. docker
 
-Do **not** run the evaluation directly on the host. Always run inside the
-Docker image using **podman**, via `docker-mount-script-and-run.sh`, which
-bind-mounts `runresults/` so output lands back on the host:
+Each test comes in two flavors:
 
-```bash
-./docker-mount-script-and-run.sh <command...>
-```
+- `run-<name>.sh` — runs the test **directly on the current machine**. Assumes
+  the dataset is already extracted and `uv` is available.
+- `docker-run-<name>.sh` — runs the same `run-<name>.sh` **inside the container**
+  via podman (`docker-mount-script-and-run.sh`), which bind-mounts `runresults/`
+  so output lands back on the host and forwards the env knobs into the container.
 
-The image (`localhost/practical-misplace-monarch`) is built from `Dockerfile`
-and ships the extracted dataset plus the built `leanwuzla` binary. Rebuild the
-image whenever `Dockerfile`, the dataset, or the Leanwuzla pin changes.
+The tests:
 
-## Run scripts
+- `run-smoke.sh` / `docker-run-smoke.sh` — small sample run (defaults: 4
+  problems, 1 run, 60s timeout) for a quick sanity check.
+- `run-all.sh` / `docker-run-all.sh` — full run over every problem in the dataset.
+- `run-debug.sh` / `docker-run-debug.sh` — single `.smt2` file against both
+  solvers, printing raw records.
 
-- `./run-smoke.sh` — small sample run (defaults: 4 problems, 1 run, 60s timeout)
-  for a quick sanity check. Assumes the dataset is already extracted (it is, in
-  the image).
-- `./run-all.sh` — full run over every problem in the dataset.
+All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
+`TIMEOUT_SEC=900 ./docker-run-all.sh`.
 
-Both wrap `docker-mount-script-and-run.sh` and accept env overrides, e.g.
-`NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or `TIMEOUT_SEC=900 ./run-all.sh`.
+The container image (`localhost/fp-lean-eval`) is built from `Dockerfile` and
+ships the extracted dataset plus the built `leanwuzla` binary. Rebuild the image
+whenever `Dockerfile`, the dataset, or the Leanwuzla pin changes.
 
 ## Harness layout
 

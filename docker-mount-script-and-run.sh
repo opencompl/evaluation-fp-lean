@@ -1,5 +1,16 @@
 #!/usr/bin/env bash
-# Shell script to mount the scripts directory and run the results.
+# Mount runresults/ into the container and run the given command inside it.
+#
+# Forwards the harness tuning knobs (GUID, NPROBLEMS, ...) into the container
+# when they are set, so `NPROBLEMS=8 ./docker-run-smoke.sh` works end to end.
+cd "$(dirname "$0")"
 
-podman run --mount type=bind,src="$(pwd)/runresults",dst=/workspace/runresults  -it localhost/fp-lean-eval "$@"
+envargs=()
+for var in GUID NPROBLEMS RUNS TIMEOUT_SEC MEMOUT_MB NPROC FILE; do
+    if [ -n "${!var:-}" ]; then
+        envargs+=(-e "$var=${!var}")
+    fi
+done
 
+podman run --mount type=bind,src="$(pwd)/runresults",dst=/workspace/runresults \
+    ${envargs[@]+"${envargs[@]}"} -it localhost/fp-lean-eval "$@"
