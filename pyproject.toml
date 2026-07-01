@@ -10,3 +10,6 @@ dependencies = [
     "polars>=1.39.3",
     "psutil>=7.2.2",
 ]
+
+[tool.setuptools]
+py-modules = []
