@@ -5,6 +5,7 @@ import getpass
 import hashlib
 import json
 import math
+import os
 import pathlib
 import random
 import socket
@@ -20,8 +21,13 @@ from runwithlimits import run_with_limits
 ToolName = Literal["bitwuzla", "fplean"]
 
 SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
-BITWUZLA_PATH: pathlib.Path = pathlib.Path("../bitwuzla/build/src/main/bitwuzla")
-LEANWUZLA_DIR: pathlib.Path = pathlib.Path("Leanwuzla")
+# Paths default to the container layout but can be overridden via the
+# environment so the harness also runs on a host checkout, e.g.
+#   BITWUZLA_PATH=/opt/homebrew/bin/bitwuzla LEANWUZLA_DIR=leanwuzla
+BITWUZLA_PATH: pathlib.Path = pathlib.Path(
+    os.environ.get("BITWUZLA_PATH", "../bitwuzla/build/src/main/bitwuzla"))
+LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
+    os.environ.get("LEANWUZLA_DIR", "Leanwuzla"))
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 FP_DATASET_DIR: pathlib.Path = pathlib.Path("datasets/non-incremental/FP")
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
