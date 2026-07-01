@@ -1,0 +1,3 @@
+[submodule "leanwuzla"]
+	path = leanwuzla
+	url = git@github.com:opencompl/leanwuzla-private.git
