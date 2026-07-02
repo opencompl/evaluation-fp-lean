@@ -6,10 +6,11 @@
 # on the host, extract them yourself first). To run this inside the container
 # instead, use ./docker-run-smoke.sh.
 #
-# Override knobs via env, e.g.  NPROBLEMS=8 RUNS=2 ./run-smoke.sh
+# Override knobs via env, e.g.  NPROBLEMS=8 RUNS=2 SUITE=wintersteiger-supported-family ./run-smoke.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
+SUITE="${SUITE:-wintersteiger-supported-family}"
 GUID="${GUID:-smoke}"
 NPROBLEMS="${NPROBLEMS:-4}"
 RUNS="${RUNS:-1}"
@@ -18,6 +19,7 @@ MEMOUT_MB="${MEMOUT_MB:-8000}"
 NPROC="${NPROC:-4}"
 
 exec uv run ./cli.py cactus --run --plot \
+    --suite "$SUITE" \
     --guid "$GUID" \
     --nproblems "$NPROBLEMS" \
     --runs "$RUNS" \

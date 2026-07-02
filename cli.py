@@ -18,7 +18,7 @@ PlotFn = Callable[[pathlib.Path, pathlib.Path, argparse.Namespace], None]
 
 
 def cactus_configs(opts: argparse.Namespace) -> list[bench.Config]:
-    probs = bench.sampled_problems(opts.nproblems)
+    probs = bench.sampled_problems(opts.nproblems, bench.SUITES[opts.suite])
     out: list[bench.Config] = []
     for tool in bench.TOOLS:
         for run in range(opts.runs):
@@ -39,7 +39,8 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
         print(f"no such file: {path}")
         sys.exit(1)
     try:
-        rel = path.relative_to(bench.FP_DATASET_DIR.resolve())
+        dataset_dir = bench.SUITES[opts.suite].dataset_dir
+        rel = path.relative_to(dataset_dir.resolve())
         family = rel.parts[0] if len(rel.parts) > 1 else "debug"
         benchmark = str(rel)
     except ValueError:
@@ -74,6 +75,7 @@ def do_run(opts: argparse.Namespace, config_name: str, configs_fn: ConfigFn) -> 
 
     manifest: bench.Manifest = {
         "config_name": config_name,
+        "suite": opts.suite,
         "tools": bench.TOOLS,
         "nproblems": opts.nproblems,
         "runs": opts.runs,
@@ -117,6 +119,8 @@ def cmd_debug(opts: argparse.Namespace) -> None:
 def add_common_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--run", action="store_true")
     p.add_argument("--plot", action="store_true")
+    p.add_argument("--suite", choices=list(bench.SUITES), default=bench.DEFAULT_SUITE,
+                   help="benchmark suite: fixes dataset dir, families, and status filter")
     p.add_argument("--guid", default="latest")
     p.add_argument("--nproblems", type=int, default=None)
     p.add_argument("--runs", type=int, default=2)
