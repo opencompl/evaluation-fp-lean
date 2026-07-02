@@ -26,24 +26,38 @@ class MonitorFlags:
     timeout : bool = False
 
 
-def monitor_memory(pid: int, memout_mb: int, flag: MonitorFlags):
+def monitor_limits(pid: int, memout_mb: int, deadline: float, flag: MonitorFlags):
     """
-    Monitor memory of process 'pid', and ensure that it
-    does not exceed 'memout_mb' (in megabytes) by polling.
-    'flag' is an inout class
-    the monitor thread and the main thread.
-    - flag.done: whether the process has finished running
-    - flag.memout: whether the process has exceeded memory limits.
+    Poll the process tree rooted at 'pid' and kill it if it exceeds either the
+    wall-clock 'deadline' (a time.monotonic() value) or 'memout_mb' megabytes.
+
+    This thread is the PRIMARY wall-timeout enforcer. Relying on
+    subprocess.communicate(timeout=...) alone is not enough: under heavy CPU
+    oversubscription the parent can be starved so that the child finishes (and
+    communicate returns "success") before communicate ever gets scheduled to
+    check its own deadline, so the timeout silently leaks. An independent thread
+    that actively kills at the deadline whenever it is scheduled closes that gap.
+
+    'flag' is shared inout state between this thread and the main thread:
+    - flag.done: set by the main thread once the process has finished.
+    - flag.memout / flag.timeout: set here when the corresponding limit is hit.
     """
     try:
         proc = psutil.Process(pid)
         while not flag.done:
-            mem = proc.memory_info().rss
-            for child in proc.children(recursive=True):
-                try:
-                    mem += child.memory_info().rss
-                except psutil.NoSuchProcess:
-                    continue
+            if time.monotonic() >= deadline:
+                flag.timeout = True
+                kill_process_tree(pid)
+                return
+            try:
+                mem = proc.memory_info().rss
+                for child in proc.children(recursive=True):
+                    try:
+                        mem += child.memory_info().rss
+                    except psutil.NoSuchProcess:
+                        continue
+            except psutil.NoSuchProcess:
+                return
             if mem > memout_mb * 1024 * 1024:
                 flag.memout = True
                 kill_process_tree(pid)
@@ -86,6 +100,11 @@ def run_with_limits(cmd: List[str], timeout_sec: int, memout_mb: int, cwd : Opti
 
     Returns a 'RunWithLimitsOutput'
     """
+    # The monitor thread enforces the wall deadline by actively killing the
+    # process tree. communicate() keeps its own timeout only as a last-resort
+    # backstop (in case the monitor thread itself dies), with a small grace
+    # period so the monitor is the one that normally fires.
+    BACKSTOP_GRACE_SEC = 5
     try:
         # logging.info(f"running command w/limits: '{" ".join(cmd)}' @ cwd: '{cwd}' with limits timeout: '{timeout}' memout: '{memout_mb}'")
         proc = subprocess.Popen(
@@ -97,28 +116,28 @@ def run_with_limits(cmd: List[str], timeout_sec: int, memout_mb: int, cwd : Opti
             cwd=cwd
         )
         flag = MonitorFlags()
+        deadline = time.monotonic() + timeout_sec
         monitor_thread = threading.Thread(
-            target=monitor_memory, args=(proc.pid, memout_mb, flag)
+            target=monitor_limits, args=(proc.pid, memout_mb, deadline, flag)
         )
         monitor_thread.start()
 
         try:
-            stdout, stderr = proc.communicate(timeout=timeout_sec)
-            flag.done = True
-            monitor_thread.join()
-            output = RunWithLimitsOutput(stdout, stderr, proc.returncode)
-            if flag.memout:
-                output.set_memout()
-            return output
+            stdout, stderr = proc.communicate(timeout=timeout_sec + BACKSTOP_GRACE_SEC)
         except subprocess.TimeoutExpired:
-            flag.done  = True
+            # Backstop path: the monitor did not kill in time. Force it.
             flag.timeout = True
             kill_process_tree(proc.pid)
             stdout, stderr = proc.communicate()
-            monitor_thread.join()
-            output = RunWithLimitsOutput(stdout, stderr, proc.returncode)
+        flag.done = True
+        monitor_thread.join()
+
+        output = RunWithLimitsOutput(stdout, stderr, proc.returncode)
+        if flag.memout:
+            output.set_memout()
+        if flag.timeout:
             output.set_timeout()
-            return output
+        return output
     except Exception as e:
         output = RunWithLimitsOutput("", "", -1)
         output.set_exception(e)
