@@ -58,7 +58,10 @@ def load(indir: pathlib.Path) -> pl.DataFrame:
             if line.strip():
                 raw = cast(bench.RawRecord, json.loads(line))
                 rows.append(parse_raw(raw))
-    return pl.from_dicts(cast(list, rows))
+    # infer_schema_length=None scans all rows: sorted filenames put every
+    # bitwuzla record (cwd=null) before the fplean ones (cwd="…/leanwuzla"), so
+    # a bounded inference window would wrongly type `cwd` as Null and fail.
+    return pl.from_dicts(cast(list, rows), infer_schema_length=None)
 
 
 def compute_tool_stats(df: pl.DataFrame, agg: pl.DataFrame, tool: bench.ToolName) -> ToolStats:
