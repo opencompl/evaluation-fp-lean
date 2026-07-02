@@ -20,7 +20,7 @@ import lib
 from runwithlimits import run_with_limits
 
 
-ToolName = Literal["bitwuzla", "fplean"]
+ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel"]
 
 SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 # Paths default to the container layout but can be overridden via the
@@ -33,7 +33,7 @@ LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
-TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
+TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
 
 @dataclass(frozen=True)
 class Suite:
@@ -79,8 +79,10 @@ SUITES: dict[str, Suite] = {
 }
 DEFAULT_SUITE: str = "wintersteiger-supported-family"
 
-tool2color: dict[ToolName, str] = {"bitwuzla": "#FFAB40", "fplean": "#2E7D32"}
-tool2label: dict[ToolName, str] = {"bitwuzla": "Bitwuzla", "fplean": "FP-Lean"}
+tool2color: dict[ToolName, str] = {
+    "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0"}
+tool2label: dict[ToolName, str] = {
+    "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)"}
 
 
 class Problem(TypedDict):
@@ -183,22 +185,27 @@ def write_machine_data_tex(folder: pathlib.Path) -> None:
 
 
 def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[str]:
-    if tool == "fplean":
+    if tool in ("fplean", "fplean-nokernel"):
         # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
         # match the harness limit so it isn't cut off before bitwuzla is.
         # --maxHeartbeats is raised far above the default (200000) so that simp
         # preprocessing isn't aborted before the wall-clock timeout is reached.
-        return ["lake", "env", str(FPLEAN_PATH.absolute()),
-                "--timeout", str(timeout_sec),
-                "--maxHeartbeats", "9999999",
-                str(path.absolute())]
+        cmd = ["lake", "env", str(FPLEAN_PATH.absolute()),
+               "--timeout", str(timeout_sec),
+               "--maxHeartbeats", "9999999"]
+        if tool == "fplean-nokernel":
+            # skip the Lean kernel re-check of the bvDecide reflection proof;
+            # only the LRAT certificate is verified (Leanwuzla decideSmtNoKernel).
+            cmd.append("--disableKernel")
+        cmd.append(str(path.absolute()))
+        return cmd
     if tool == "bitwuzla":
         return [str(BITWUZLA_PATH.absolute()), str(path.absolute())]
     raise RuntimeError(f"unknown tool: {tool}")
 
 
 def tool_cwd(tool: ToolName) -> Optional[str]:
-    if tool == "fplean":
+    if tool in ("fplean", "fplean-nokernel"):
         # run from the Leanwuzla project root so `lake env` finds the lakefile/oleans.
         return str(LEANWUZLA_DIR.absolute())
     return None

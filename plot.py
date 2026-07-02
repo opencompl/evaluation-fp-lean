@@ -16,6 +16,12 @@ import lib
 TIME_MS_RE: re.Pattern[str] = re.compile(r"Time elapsed:\s*(\d+)\s*ms")
 
 
+def _texname(tool: str) -> str:
+    """Letters-only, capitalized form of a tool name for use in LaTeX
+    \\newcommand names (which may not contain hyphens or digits)."""
+    return re.sub(r"[^A-Za-z]", "", tool).capitalize()
+
+
 class ToolStats(TypedDict):
     nunsat: int
     nsat: int
@@ -29,7 +35,7 @@ class ToolStats(TypedDict):
 def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
     ok = not (r["is_timeout"] or r["is_memout"] or r["is_exception"])
     tool = r["tool"]
-    if tool == "fplean":
+    if tool in ("fplean", "fplean-nokernel"):
         # leanwuzla reports its verdict as `sat`/`unsat` on stdout and exits 0
         # (it does not use the 10/20 SMT-COMP exit codes). Failures such as the
         # "potentially spurious counterexample" abstraction error print neither
@@ -137,7 +143,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     for tool in bench.TOOLS:
         s = stats[tool]
-        cap = tool.capitalize()
+        cap = _texname(tool)
         per_tool: dict[str, object] = {
             f"NumUnsat{cap}":     s["nunsat"],
             f"NumSat{cap}":       s["nsat"],
@@ -152,7 +158,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
         lines.extend(bench.format_newcommand(k, v) for k, v in per_tool.items())
 
     speedups = {
-        f"Speedup{a.capitalize()}Over{b.capitalize()}":
+        f"Speedup{_texname(a)}Over{_texname(b)}":
             bench.geomean_speedup(stats[b]["geomean_ms"], stats[a]["geomean_ms"])
         for a in bench.TOOLS for b in bench.TOOLS if a != b
     }
