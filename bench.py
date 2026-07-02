@@ -8,6 +8,7 @@ import math
 import os
 import pathlib
 import random
+import re
 import socket
 import time
 from functools import partial
@@ -29,19 +30,46 @@ BITWUZLA_PATH: pathlib.Path = pathlib.Path(
 LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
     os.environ.get("LEANWUZLA_DIR", "Leanwuzla"))
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
-# Which benchmark tree to walk, and which of its top-level subdirs count as
-# "families". Both are env-overridable so the same harness can target either
-# the FP division (default) or the easier QF_FP/wintersteiger set, e.g.
-#   FP_DATASET_DIR=datasets/non-incremental/QF_FP/wintersteiger \
-#   FAMILIES=lt,gt,eq,abs,add,sub,mul,div ./run-smoke.sh
+# Wintersteiger QF_FP operations fplean currently solves. Single source of
+# truth for the "supported" suite below -- add ops here as fplean gains support.
+# (fplean does NOT yet support fp.min/fp.max/fp.sqrt/fp.roundToIntegral, and
+# times out on fp.rem.)
+SUPPORTED_OPS: list[str] = ["lt", "gt", "eq", "abs", "add", "sub", "mul", "div"]
+
+# A "suite" bundles the benchmark tree, the families under it that count, and an
+# optional (set-info :status ...) filter. Pick one with the SUITE env var; the
+# individual FP_DATASET_DIR / FAMILIES / STATUS env vars still override it.
+#
+#   pine       the one quantifier-free FP family (all hard Float32 nonlinear
+#              arithmetic -- fplean times out on it). This is the default so the
+#              harness behaves exactly as before unless SUITE is set.
+#   supported  the easy QF_FP/wintersteiger ops fplean supports, restricted to
+#              unsat instances -- the problems both solvers actually finish.
+_SUITES: dict[str, dict] = {
+    "pine": {
+        "dir": "datasets/non-incremental/FP",
+        "families": ["20200911-Pine"],
+        "status": "",
+    },
+    "supported": {
+        "dir": "datasets/non-incremental/QF_FP/wintersteiger",
+        "families": SUPPORTED_OPS,
+        "status": "unsat",
+    },
+}
+_suite: dict = _SUITES.get(os.environ.get("SUITE", "pine"), _SUITES["pine"])
+
 FP_DATASET_DIR: pathlib.Path = pathlib.Path(
-    os.environ.get("FP_DATASET_DIR", "datasets/non-incremental/FP"))
+    os.environ.get("FP_DATASET_DIR", _suite["dir"]))
+# Keep only problems whose SMT-LIB (set-info :status ...) equals this, or None
+# for no status filtering.
+STATUS_FILTER: Optional[str] = os.environ.get("STATUS", _suite["status"]) or None
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
 TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
 
-# Benchmark families available under FP_DATASET_DIR, with their problem counts.
-# Every family is uniformly quantified or quantifier-free:
+# The FP division's families, for reference. Every family there is uniformly
+# quantified or quantifier-free:
 #
 #   20170501-Heizmann-UltimateAutomizer     1 problem,    all quantified
 #   2019-Preiner                            2415 problems, all quantified
@@ -49,20 +77,15 @@ TOOLS: list[ToolName] = ["bitwuzla", "fplean"]
 #   20200911-Pine                           245 problems, quantifier-free
 #
 # The bitblasting `fplean` backend cannot handle quantifiers (exists/forall), so
-# the default restricts to the one quantifier-free FP family (Pine). Those are
-# all Float32 with heavy nonlinear arithmetic, so fplean times out on them.
-#
-# For problems both solvers actually finish, point FP_DATASET_DIR at the
-# QF_FP/wintersteiger tree and set FAMILIES to the operations fplean supports:
-# lt, gt, eq, abs, add, sub, mul, div all solve in seconds. (fplean does NOT yet
-# support fp.min/fp.max/fp.sqrt/fp.roundToIntegral, and times out on fp.rem.)
+# the `pine` suite restricts to the one quantifier-free FP family.
 ALL_FAMILIES: list[str] = [
     "20170501-Heizmann-UltimateAutomizer",
     "2019-Preiner",
     "20190429-UltimateAutomizerSvcomp2019",
     "20200911-Pine",
 ]
-FAMILIES: list[str] = os.environ.get("FAMILIES", "20200911-Pine").split(",")
+# Top-level subdirs of FP_DATASET_DIR to include (defaults from the SUITE).
+FAMILIES: list[str] = os.environ.get("FAMILIES", ",".join(_suite["families"])).split(",")
 
 tool2color: dict[ToolName, str] = {"bitwuzla": "#FFAB40", "fplean": "#2E7D32"}
 tool2label: dict[ToolName, str] = {"bitwuzla": "Bitwuzla", "fplean": "FP-Lean"}
@@ -188,6 +211,14 @@ def tool_cwd(tool: ToolName) -> Optional[str]:
     return None
 
 
+_STATUS_RE = re.compile(r"set-info\s*:status\s*(sat|unsat|unknown)")
+
+
+def _status_of(path: pathlib.Path) -> Optional[str]:
+    m = _STATUS_RE.search(path.read_text())
+    return m.group(1) if m else None
+
+
 def fp_problems() -> list[Problem]:
     out: list[Problem] = []
     for sub, _, files in FP_DATASET_DIR.walk():
@@ -197,6 +228,11 @@ def fp_problems() -> list[Problem]:
                 rel = p.relative_to(FP_DATASET_DIR)
                 family = rel.parts[0] if len(rel.parts) > 1 else ""
                 if family not in FAMILIES:
+                    continue
+                # Filter on the benchmark's declared (set-info :status ...) when
+                # requested (e.g. STATUS=unsat). Files are tiny so reading each
+                # is cheap.
+                if STATUS_FILTER is not None and _status_of(p) != STATUS_FILTER:
                     continue
                 out.append({"family": family, "benchmark": str(rel), "path": p})
     out.sort(key=lambda d: d["benchmark"])

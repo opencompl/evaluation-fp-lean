@@ -6,7 +6,8 @@
 cd "$(dirname "$0")"
 
 envargs=()
-for var in GUID NPROBLEMS RUNS TIMEOUT_SEC MEMOUT_MB NPROC FILE; do
+for var in GUID NPROBLEMS RUNS TIMEOUT_SEC MEMOUT_MB NPROC FILE \
+           SUITE STATUS FP_DATASET_DIR FAMILIES; do
     if [ -n "${!var:-}" ]; then
         envargs+=(-e "$var=${!var}")
     fi
