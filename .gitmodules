@@ -1,3 +1,6 @@
 [submodule "leanwuzla"]
 	path = leanwuzla
 	url = git@github.com:opencompl/leanwuzla-private.git
+[submodule "llvm-fp-bv-smt-extractor"]
+	path = llvm-fp-bv-smt-extractor
+	url = git@github.com:opencompl/llvm-fp-bv-smt-extractor.git
