@@ -1,2 +1,4 @@
+# extracted benchmark trees (the *.tar.zst tarballs are the tracked source)
 non-incremental/
+instcombine/
 

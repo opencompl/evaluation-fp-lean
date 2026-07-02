@@ -28,6 +28,8 @@ The tests:
 - `run-wintersteiger-all-family.sh` / `docker-run-wintersteiger-all-family.sh` —
   the full wintersteiger family (every operator, sat and unsat; ~40k). Pair with
   `NPROBLEMS` to sample, since fplean cannot solve most of it.
+- `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
+  all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
@@ -47,6 +49,8 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   ~11.5k). The `run-wintersteiger-supported-family*.sh` scripts pass this suite.
 - `wintersteiger-all-family` — the whole wintersteiger family: every operator,
   sat and unsat (~40k). fplean can only solve a fraction.
+- `instcombine-fp-problems` — ~101 QF_FP equivalence checks extracted from LLVM
+  InstCombine tests (`datasets/instcombine.tar.zst`; not SMT-LIB).
 
 `run-smoke.sh` and `run-all.sh` accept a `SUITE` env var that maps to `--suite`.
 

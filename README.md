@@ -73,9 +73,12 @@ logic. Two logics are relevant, each shipped as a `datasets/*.tar.zst` tarball
 that unpacks to `datasets/non-incremental/<LOGIC>/<family>/<problem>.smt2`:
 
 ```
-tar --use-compress-program=unzstd -xf datasets/FP.tar.zst    -C datasets/
-tar --use-compress-program=unzstd -xf datasets/QF_FP.tar.zst -C datasets/
+tar --use-compress-program=unzstd -xf datasets/FP.tar.zst          -C datasets/
+tar --use-compress-program=unzstd -xf datasets/QF_FP.tar.zst       -C datasets/
+tar --use-compress-program=unzstd -xf datasets/instcombine.tar.zst -C datasets/
 ```
+
+(`instcombine.tar.zst` is a separate, non-SMT-LIB set described at the end.)
 
 A benchmark's expected answer is embedded as `(set-info :status sat|unsat)`, and
 `FP` vs `QF_FP` is the quantified vs quantifier-free split. `fplean` bit-blasts
@@ -154,3 +157,16 @@ That is the `wintersteiger-supported-family` suite
 (`--suite wintersteiger-supported-family`), whose supported-operator list lives
 directly in `bench.SUITES` — widen it there as fplean gains support. The full
 family (every operator, sat and unsat) is `--suite wintersteiger-all-family`.
+
+## InstCombine fp-problems (not SMT-LIB)
+
+`datasets/instcombine.tar.zst` holds **101** QF_FP problems extracted from the
+LLVM InstCombine test suite by
+[`llvm-fp-bv-smt-extractor`](https://github.com/opencompl/llvm-fp-bv-smt-extractor).
+Each encodes an InstCombine peephole as an equivalence check (`(distinct lhs
+rhs)`) over `Float32`/`double`; `unsat` means the optimization is sound. They
+carry no `(set-info :status)` (all `unknown`) and no `set-logic`, and use a mix
+of fp operators (some fplean supports, some it does not).
+
+Run all of them with `--suite instcombine-fp-problems` (or
+`./run-instcombine-fp-problems.sh`).

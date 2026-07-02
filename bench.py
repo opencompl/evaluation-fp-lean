@@ -53,6 +53,8 @@ class Suite:
 #                                   instances only -- the problems fplean has any
 #                                   hope of solving, which both solvers finish.
 #                                   The default.
+#   instcombine-fp-problems         QF_FP equivalence checks extracted from LLVM
+#                                   InstCombine tests (llvm-fp-bv-smt-extractor).
 SUITES: dict[str, Suite] = {
     "wintersteiger-all-family": Suite(
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
@@ -66,6 +68,13 @@ SUITES: dict[str, Suite] = {
         # fp.roundToIntegral, times out on fp.rem, and does not finish fp.fma.
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div"],
         status="unsat",
+    ),
+    "instcombine-fp-problems": Suite(
+        # ~101 QF_FP optimization-equivalence checks extracted from LLVM
+        # InstCombine tests. No :status is known, so all of them are run.
+        dataset_dir=pathlib.Path("datasets/instcombine"),
+        families=["fp-problems"],
+        status=None,
     ),
 }
 DEFAULT_SUITE: str = "wintersteiger-supported-family"
