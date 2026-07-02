@@ -18,9 +18,10 @@ PlotFn = Callable[[pathlib.Path, pathlib.Path, argparse.Namespace], None]
 
 
 def cactus_configs(opts: argparse.Namespace) -> list[bench.Config]:
-    probs = bench.sampled_problems(opts.nproblems, bench.SUITES[opts.suite])
+    suite = bench.SUITES[opts.suite]
+    probs = bench.sampled_problems(opts.nproblems, suite)
     out: list[bench.Config] = []
-    for tool in bench.TOOLS:
+    for tool in suite.tools:
         for run in range(opts.runs):
             for p in probs:
                 out.append({
@@ -47,7 +48,7 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
         family = "debug"
         benchmark = path.name
     out: list[bench.Config] = []
-    for tool in bench.TOOLS:
+    for tool in bench.SUITES[opts.suite].tools:
         for run in range(opts.runs):
             out.append({
                 "tool": tool,
@@ -76,7 +77,7 @@ def do_run(opts: argparse.Namespace, config_name: str, configs_fn: ConfigFn) -> 
     manifest: bench.Manifest = {
         "config_name": config_name,
         "suite": opts.suite,
-        "tools": bench.TOOLS,
+        "tools": bench.SUITES[opts.suite].tools,
         "nproblems": opts.nproblems,
         "runs": opts.runs,
         "timeout_sec": opts.timeout_sec,

@@ -20,7 +20,7 @@ import lib
 from runwithlimits import run_with_limits
 
 
-ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel"]
+ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"]
 
 SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 # Paths default to the container layout but can be overridden via the
@@ -33,13 +33,18 @@ LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
-TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
+# The registry of all known tools, in display order. Which subset actually runs
+# is per-suite (see Suite.tools); plotting filters this to the tools present in
+# the data.
+TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"]
 
 @dataclass(frozen=True)
 class Suite:
     dataset_dir: pathlib.Path   # benchmark tree to walk
     families: list[str]         # top-level subdirs of dataset_dir to include
     status: Optional[str]       # keep only this (set-info :status ...), or None
+    tools: list[ToolName]       # which solvers to run for this suite
+    name_regex: str = ".*"      # keep only files whose name matches this regex
 
 
 # The benchmark suites, selected with `cli.py <cmd> --suite <name>`. A suite
@@ -55,12 +60,15 @@ class Suite:
 #                                   The default.
 #   instcombine-fp-problems         QF_FP equivalence checks extracted from LLVM
 #                                   InstCombine tests (llvm-fp-bv-smt-extractor).
+_LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
+
 SUITES: dict[str, Suite] = {
     "wintersteiger-all-family": Suite(
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
         status=None,
+        tools=_LEAN_TOOLS,
     ),
     "wintersteiger-supported-family": Suite(
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
@@ -68,6 +76,7 @@ SUITES: dict[str, Suite] = {
         # fp.roundToIntegral, times out on fp.rem, and does not finish fp.fma.
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div"],
         status="unsat",
+        tools=_LEAN_TOOLS,
     ),
     "instcombine-fp-problems": Suite(
         # ~101 QF_FP optimization-equivalence checks extracted from LLVM
@@ -75,14 +84,31 @@ SUITES: dict[str, Suite] = {
         dataset_dir=pathlib.Path("datasets/instcombine"),
         families=["fp-problems"],
         status=None,
+        tools=_LEAN_TOOLS,
     ),
+    # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
+    # that solver stays off by default. Left COMMENTED because there is no working
+    # target yet: exhaustive-enumeration is quantifier-free only (leanwuzla's
+    # parser rejects `exists`), and the only small-width data we have -- the 805
+    # width-3/5 (256-value) Preiner files -- each contain one `exists`, so it
+    # errors on them. Repoint this at quantifier-free small-width problems (or
+    # once leanwuzla learns to enumerate `exists`) and uncomment.
+    # "preiner-small": Suite(
+    #     dataset_dir=pathlib.Path("datasets/non-incremental/FP"),
+    #     families=["2019-Preiner"],
+    #     status=None,
+    #     name_regex=r"^3_5_",
+    #     tools=["bitwuzla", "exhaustive-enumeration"],
+    # ),
 }
 DEFAULT_SUITE: str = "wintersteiger-supported-family"
 
 tool2color: dict[ToolName, str] = {
-    "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0"}
+    "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0",
+    "exhaustive-enumeration": "#8E24AA"}
 tool2label: dict[ToolName, str] = {
-    "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)"}
+    "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)",
+    "exhaustive-enumeration": "Exhaustive enum"}
 
 
 class Problem(TypedDict):
@@ -185,7 +211,7 @@ def write_machine_data_tex(folder: pathlib.Path) -> None:
 
 
 def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[str]:
-    if tool in ("fplean", "fplean-nokernel"):
+    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
         # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
         # match the harness limit so it isn't cut off before bitwuzla is.
         # --maxHeartbeats is raised far above the default (200000) so that simp
@@ -197,6 +223,10 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
             # skip the Lean kernel re-check of the bvDecide reflection proof;
             # only the LRAT certificate is verified (Leanwuzla decideSmtNoKernel).
             cmd.append("--disableKernel")
+        if tool == "exhaustive-enumeration":
+            # decide the goal by native-evaluating a Decidable instance over all
+            # FP values instead of bv_decide (only feasible for tiny bit-widths).
+            cmd.append("--exhaustive-enumeration")
         cmd.append(str(path.absolute()))
         return cmd
     if tool == "bitwuzla":
@@ -205,7 +235,7 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
 
 
 def tool_cwd(tool: ToolName) -> Optional[str]:
-    if tool in ("fplean", "fplean-nokernel"):
+    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
         # run from the Leanwuzla project root so `lake env` finds the lakefile/oleans.
         return str(LEANWUZLA_DIR.absolute())
     return None
@@ -229,6 +259,10 @@ def fp_problems(suite: Suite) -> list[Problem]:
                 rel = p.relative_to(dataset_dir)
                 family = rel.parts[0] if len(rel.parts) > 1 else ""
                 if family not in suite.families:
+                    continue
+                # Restrict to filenames matching the suite's regex (default ".*"
+                # matches everything; e.g. r"^3_5_" picks a single bit-width).
+                if not re.search(suite.name_regex, f):
                     continue
                 # Filter on the benchmark's declared (set-info :status ...) when
                 # the suite requests one (e.g. unsat). Files are tiny so reading

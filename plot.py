@@ -35,7 +35,7 @@ class ToolStats(TypedDict):
 def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
     ok = not (r["is_timeout"] or r["is_memout"] or r["is_exception"])
     tool = r["tool"]
-    if tool in ("fplean", "fplean-nokernel"):
+    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
         # leanwuzla reports its verdict as `sat`/`unsat` on stdout and exits 0
         # (it does not use the 10/20 SMT-COMP exit codes). Failures such as the
         # "potentially spurious counterexample" abstraction error print neither
@@ -106,11 +106,16 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
         .filter(pl.col("n_runs") == expected_runs)
     )
 
+    # Only report/plot tools actually present in this run's data, in registry
+    # order (a suite may run a subset of bench.TOOLS).
+    present = set(df["tool"].to_list())
+    tools = [t for t in bench.TOOLS if t in present]
+
     stats: dict[bench.ToolName, ToolStats] = {
-        tool: compute_tool_stats(df, agg, tool) for tool in bench.TOOLS
+        tool: compute_tool_stats(df, agg, tool) for tool in tools
     }
 
-    for tool in bench.TOOLS:
+    for tool in tools:
         s = stats[tool]
         print(f"  {tool:10s} unsat={s['nunsat']:<4d} sat={s['nsat']:<3d} "
               f"timeout={s['ntimeout']:<3d} memout={s['nmemout']:<3d} "
@@ -119,7 +124,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     lib.set_global_matplotlib_defaults()
     fig, ax = plt.subplots(figsize=(6, 3.5))
-    for tool in bench.TOOLS:
+    for tool in tools:
         times = stats[tool]["times"]
         if not times:
             continue
@@ -141,7 +146,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     lines = ["%% Auto-generated LaTeX commands", "", "%% totals"]
     lines.append(bench.format_newcommand("NumProblemsTotal", nproblems_total))
 
-    for tool in bench.TOOLS:
+    for tool in tools:
         s = stats[tool]
         cap = _texname(tool)
         per_tool: dict[str, object] = {
@@ -160,7 +165,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     speedups = {
         f"Speedup{_texname(a)}Over{_texname(b)}":
             bench.geomean_speedup(stats[b]["geomean_ms"], stats[a]["geomean_ms"])
-        for a in bench.TOOLS for b in bench.TOOLS if a != b
+        for a in tools for b in tools if a != b
     }
     lines.append("")
     lines.append("%% speedups")
