@@ -62,6 +62,15 @@ class Suite:
 #                                   InstCombine tests (llvm-fp-bv-smt-extractor).
 _LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
 
+# The 12 operation subdirectories in each fptg-testsuite format. fplean does not
+# support all of them (it errors on e.g. fp.max/min/sqrt/rem/roundToIntegral),
+# but including them all keeps the soundness comparison comprehensive -- those
+# show up as solver errors, distinct from disagreements (wrong verdicts).
+_FPTG_OPS: list[str] = [
+    "fp.abs", "fp.add", "fp.div", "fp.fma", "fp.max", "fp.min",
+    "fp.mul", "fp.neg", "fp.rem", "fp.roundToIntegral", "fp.sqrt", "fp.sub",
+]
+
 SUITES: dict[str, Suite] = {
     "wintersteiger-all-family": Suite(
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
@@ -100,6 +109,31 @@ SUITES: dict[str, Suite] = {
     #     name_regex=r"^3_5_",
     #     tools=["bitwuzla", "exhaustive-enumeration"],
     # ),
+
+    # fptg-testsuite (Schanda's fp_test_generator): ground QF_FP tests whose
+    # (set-info :status) is an MPFR/PyMPF oracle ground truth -- a differential
+    # soundness suite. NOTE: bitwuzla must be built with --fpexp to accept the
+    # non-standard float8 (3/5) and bfloat16 (8/8) formats (the container
+    # bitwuzla is; the homebrew one is not), else it errors on every file.
+    # float8 (8-bit, 256 values) is small enough for exhaustive-enumeration.
+    "fptg-float8": Suite(
+        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/float8"),
+        families=_FPTG_OPS,
+        status=None,
+        tools=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+    ),
+    "fptg-float16": Suite(
+        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/float16"),
+        families=_FPTG_OPS,
+        status=None,
+        tools=["bitwuzla", "fplean", "fplean-nokernel"],
+    ),
+    "fptg-bfloat16": Suite(
+        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/bfloat16"),
+        families=_FPTG_OPS,
+        status=None,
+        tools=["bitwuzla", "fplean", "fplean-nokernel"],
+    ),
 }
 DEFAULT_SUITE: str = "wintersteiger-supported-family"
 
@@ -115,6 +149,10 @@ class Problem(TypedDict):
     family: str
     benchmark: str
     path: pathlib.Path
+    # The benchmark's declared (set-info :status ...) -- the expected/reference
+    # answer ("sat"/"unsat"/"unknown"), or None if unlabelled. For the fptg
+    # suites this is an MPFR-oracle-validated ground truth.
+    expected_status: Optional[str]
 
 
 class Config(TypedDict):
@@ -123,6 +161,7 @@ class Config(TypedDict):
     family: str
     benchmark: str
     path: pathlib.Path
+    expected_status: Optional[str]
 
 
 class RawRecord(TypedDict):
@@ -131,6 +170,7 @@ class RawRecord(TypedDict):
     family: str
     benchmark: str
     path: str
+    expected_status: Optional[str]
     cmd: list[str]
     cwd: Optional[str]
     returncode: int
@@ -264,12 +304,14 @@ def fp_problems(suite: Suite) -> list[Problem]:
                 # matches everything; e.g. r"^3_5_" picks a single bit-width).
                 if not re.search(suite.name_regex, f):
                     continue
-                # Filter on the benchmark's declared (set-info :status ...) when
-                # the suite requests one (e.g. unsat). Files are tiny so reading
-                # each is cheap.
-                if suite.status is not None and _status_of(p) != suite.status:
+                # Read the declared (set-info :status ...) once: it is both the
+                # optional suite filter and the expected/reference answer we
+                # record. Files are tiny so reading each is cheap.
+                expected = _status_of(p)
+                if suite.status is not None and expected != suite.status:
                     continue
-                out.append({"family": family, "benchmark": str(rel), "path": p})
+                out.append({"family": family, "benchmark": str(rel), "path": p,
+                            "expected_status": expected})
     out.sort(key=lambda d: d["benchmark"])
     return out
 
@@ -293,6 +335,7 @@ def run_one(cfg: Config, timeout_sec: int, memout_mb: int, outdir: pathlib.Path)
         "family": cfg["family"],
         "benchmark": cfg["benchmark"],
         "path": str(cfg["path"]),
+        "expected_status": cfg["expected_status"],
         "cmd": cmd,
         "cwd": cwd,
         "returncode": r.returncode,

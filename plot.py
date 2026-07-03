@@ -27,7 +27,10 @@ class ToolStats(TypedDict):
     nsat: int
     ntimeout: int
     nmemout: int
-    nerror: int
+    nerror: int          # solver produced no sat/unsat verdict (and not a timeout/memout)
+    ndisagree: int       # gave a definite verdict that contradicts the expected :status
+    nchecked: int        # answered problems whose expected :status is known (disagree denom)
+    pct_disagree: float  # 100 * ndisagree / nchecked
     geomean_ms: float
     times: list[float]
 
@@ -67,19 +70,42 @@ def load(indir: pathlib.Path) -> pl.DataFrame:
     # infer_schema_length=None scans all rows: sorted filenames put every
     # bitwuzla record (cwd=null) before the fplean ones (cwd="…/leanwuzla"), so
     # a bounded inference window would wrongly type `cwd` as Null and fail.
-    return pl.from_dicts(cast(list, rows), infer_schema_length=None)
+    df = pl.from_dicts(cast(list, rows), infer_schema_length=None)
+    if "expected_status" not in df.columns:  # older runs predate the field
+        df = df.with_columns(pl.lit(None).alias("expected_status"))
+    return df
 
 
 def compute_tool_stats(df: pl.DataFrame, agg: pl.DataFrame, tool: bench.ToolName) -> ToolStats:
     tool_df = df.filter(pl.col("tool") == tool)
     tool_agg = agg.filter(pl.col("tool") == tool)
     times = sorted(tool_agg["elapsed_ms_geo"].to_list())
+
+    verdict = (
+        pl.when(pl.col("is_unsat")).then(pl.lit("unsat"))
+          .when(pl.col("is_sat")).then(pl.lit("sat"))
+          .otherwise(pl.lit(None))
+    )
+    answered = pl.col("is_unsat") | pl.col("is_sat")
+    known = pl.col("expected_status").is_in(["sat", "unsat"])
+    v = tool_df.with_columns(verdict.alias("_verdict"))
+    # answered problems whose expected answer is known -- the ones we can grade.
+    checkable = v.filter(answered & known)
+    nchecked = checkable.height
+    ndisagree = checkable.filter(pl.col("_verdict") != pl.col("expected_status")).height
+    # "error" = ran but gave no verdict, and it isn't a timeout/memout.
+    nerror = tool_df.filter(
+        ~(pl.col("is_unsat") | pl.col("is_sat") | pl.col("is_timeout") | pl.col("is_memout"))
+    ).height
     return {
         "nunsat": len(times),
         "nsat": tool_df.filter(pl.col("is_sat")).height,
         "ntimeout": tool_df.filter(pl.col("is_timeout")).height,
         "nmemout": tool_df.filter(pl.col("is_memout")).height,
-        "nerror": tool_df.filter(pl.col("is_exception")).height,
+        "nerror": nerror,
+        "ndisagree": ndisagree,
+        "nchecked": nchecked,
+        "pct_disagree": (100.0 * ndisagree / nchecked) if nchecked else 0.0,
         "geomean_ms": bench.geomean(times),
         "times": times,
     }
@@ -117,9 +143,11 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     for tool in tools:
         s = stats[tool]
-        print(f"  {tool:10s} unsat={s['nunsat']:<4d} sat={s['nsat']:<3d} "
-              f"timeout={s['ntimeout']:<3d} memout={s['nmemout']:<3d} "
-              f"error={s['nerror']:<3d} "
+        print(f"  {tool:22s} unsat={s['nunsat']:<5d} sat={s['nsat']:<5d} "
+              f"timeout={s['ntimeout']:<4d} memout={s['nmemout']:<3d} "
+              f"error={s['nerror']:<5d} "
+              f"disagree={s['ndisagree']:<4d}/{s['nchecked']:<5d} "
+              f"({s['pct_disagree']:.2f}% unsound) "
               f"geomean={lib.time_str_from_ms(s['geomean_ms'])}")
 
     lib.set_global_matplotlib_defaults()
@@ -154,7 +182,10 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
             f"NumSat{cap}":       s["nsat"],
             f"NumTimeout{cap}":   s["ntimeout"],
             f"NumMemout{cap}":    s["nmemout"],
-            f"NumError{cap}":     s["nerror"],
+            f"NumErrors{cap}":    s["nerror"],
+            f"NumChecked{cap}":   s["nchecked"],
+            f"NumDisagreementsWithExpectedStatus{cap}":     s["ndisagree"],
+            f"PercentDisagreementsWithExpectedStatus{cap}": f"{s['pct_disagree']:.2f}",
             f"GeomeanTime{cap}":  lib.time_str_from_ms(s["geomean_ms"]),
             f"GeomeanMs{cap}":    f"{s['geomean_ms']:.1f}",
         }

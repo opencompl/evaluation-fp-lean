@@ -30,6 +30,7 @@ def cactus_configs(opts: argparse.Namespace) -> list[bench.Config]:
                     "family": p["family"],
                     "benchmark": p["benchmark"],
                     "path": p["path"],
+                    "expected_status": p["expected_status"],
                 })
     return out
 
@@ -47,6 +48,7 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
     except ValueError:
         family = "debug"
         benchmark = path.name
+    expected_status = bench._status_of(path)
     out: list[bench.Config] = []
     for tool in bench.SUITES[opts.suite].tools:
         for run in range(opts.runs):
@@ -56,6 +58,7 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
                 "family": family,
                 "benchmark": benchmark,
                 "path": path,
+                "expected_status": expected_status,
             })
     return out
 

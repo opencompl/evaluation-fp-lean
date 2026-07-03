@@ -4,3 +4,6 @@
 [submodule "llvm-fp-bv-smt-extractor"]
 	path = llvm-fp-bv-smt-extractor
 	url = git@github.com:opencompl/llvm-fp-bv-smt-extractor.git
+[submodule "fptg-testsuite"]
+	path = fptg-testsuite
+	url = https://github.com/florianschanda/fptg_testsuite.git
