@@ -52,8 +52,10 @@ division). The suites are the `bench.SUITES` registry (each a frozen
 - `instcombine-fp-problems` — ~101 QF_FP equivalence checks extracted from LLVM
   InstCombine tests (`datasets/instcombine.tar.zst`; not SMT-LIB).
 - `fptg-float8` / `fptg-float16` / `fptg-bfloat16` — Schanda's `fp_test_generator`
-  suite (`fptg-testsuite/` submodule): ground QF_FP tests whose `(set-info
-  :status)` is an MPFR/PyMPF **oracle** ground truth, so they measure soundness.
+  suite (`datasets/fptg-testsuite.tar.zst`, derived from the `fptg-testsuite`
+  submodule with `define-const` rewritten to `define-fun` so bitwuzla parses it):
+  ground QF_FP tests whose `(set-info :status)` is an MPFR/PyMPF **oracle** ground
+  truth, so they measure soundness.
   `fptg-float8` (8-bit, 256 values) adds `exhaustive-enumeration` to its tools;
   the 16-bit ones run bitwuzla vs the fplean pair only. **bitwuzla must be built
   with `--fpexp`** to accept float8 (`3 5`) / bfloat16 (`8 8`) — use the

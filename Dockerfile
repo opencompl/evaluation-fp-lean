@@ -83,13 +83,5 @@ RUN for f in datasets/*.tar.zst; do \
         tar --use-compress-program=unzstd -xf "$f" -C datasets/; \
     done
 
-# The fptg-testsuite (a submodule locally) ships as a tarball whose internal
-# paths are repo-root-relative (fptg-testsuite/QF_FP/tests_validated/...), so it
-# is extracted to the workdir root -- matching the fptg-* suites' dataset_dir.
-# Its define-const commands have been rewritten to define-fun so bitwuzla parses
-# them. Kept out of datasets/ so the loop above does not mis-extract it.
-COPY fptg-testsuite.tar.zst ./
-RUN tar --use-compress-program=unzstd -xf fptg-testsuite.tar.zst -C .
-
 CMD /usr/bin/fish
 

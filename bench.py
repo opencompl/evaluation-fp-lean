@@ -117,19 +117,19 @@ SUITES: dict[str, Suite] = {
     # bitwuzla is; the homebrew one is not), else it errors on every file.
     # float8 (8-bit, 256 values) is small enough for exhaustive-enumeration.
     "fptg-float8": Suite(
-        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/float8"),
+        dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/float8"),
         families=_FPTG_OPS,
         status=None,
         tools=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
     ),
     "fptg-float16": Suite(
-        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/float16"),
+        dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/float16"),
         families=_FPTG_OPS,
         status=None,
         tools=["bitwuzla", "fplean", "fplean-nokernel"],
     ),
     "fptg-bfloat16": Suite(
-        dataset_dir=pathlib.Path("fptg-testsuite/QF_FP/tests_validated/bfloat16"),
+        dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/bfloat16"),
         families=_FPTG_OPS,
         status=None,
         tools=["bitwuzla", "fplean", "fplean-nokernel"],
