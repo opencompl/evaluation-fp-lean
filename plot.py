@@ -190,8 +190,10 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     # Prefix every macro with the suite name so several runs' cactus.tex files
     # can be \input together without redefining each other's commands. Prefer the
     # manifest's suite (what actually ran); fall back to the --suite option.
+    suite_name = opts.suite
     manifest = indir / "manifest.json"
-    suite_name = json.loads(manifest.read_text())["suite"] if manifest.exists() else opts.suite
+    if manifest.exists():
+        suite_name = json.loads(manifest.read_text()).get("suite", suite_name)
     pfx = _texprefix(suite_name)
 
     lines = [f"%% Auto-generated LaTeX commands for suite '{suite_name}'", "", "%% totals"]
