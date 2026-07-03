@@ -30,6 +30,9 @@ The tests:
   `NPROBLEMS` to sample, since fplean cannot solve most of it.
 - `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
   all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
+- `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
+  suites back to back (`wintersteiger-supported-family` 2000-sample, then
+  `instcombine-small`), each with a cactus plot and suite-prefixed `cactus.tex`.
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
