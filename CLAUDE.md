@@ -57,16 +57,22 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   ground QF_FP tests whose `(set-info :status)` is an MPFR/PyMPF **oracle** ground
   truth, so they measure soundness.
   `fptg-float8` (8-bit, 256 values) adds `exhaustive-enumeration` to its tools;
-  the 16-bit ones run bitwuzla vs the fplean pair only. **bitwuzla must be built
-  with `--fpexp`** to accept float8 (`3 5`) / bfloat16 (`8 8`) — use the
-  container bitwuzla, or it errors on every file.
+  the 16-bit ones run bitwuzla vs the fplean pair only. (These are ground
+  problems, so enumeration just evaluates -- it does not enumerate a domain.)
+- `instcombine-small` — the 25 constant-free (width-parametric) InstCombine
+  identities reparametrized to tiny widths E5M2 (`5 3`) and E5M4 (`5 5`), 50 total
+  (`datasets/instcombine-small.tar.zst`). These have 1-3 free FP variables, so
+  `exhaustive-enumeration` genuinely enumerates (feasible for ≤2 vars, times out
+  beyond). All four tools run.
 
 Each benchmark's declared `(set-info :status ...)` is recorded per problem as
 `expected_status` and threaded into the records. `plot.py` grades every solver
 against it: `NumErrors` (ran, no verdict), `NumDisagreementsWithExpectedStatus`
 and `PercentDisagreementsWithExpectedStatus` (gave a definite verdict that
 contradicts the oracle = unsound), printed in the summary and emitted as LaTeX
-macros.
+macros. Every `cactus.tex` macro is prefixed with the suite name (via
+`_texprefix`, which spells digits out so `fptg-float8`/`fptg-float16` stay
+distinct) so multiple runs' tex files can be `\input` together without clashing.
 
 `run-smoke.sh` and `run-all.sh` accept a `SUITE` env var that maps to `--suite`.
 

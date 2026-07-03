@@ -95,6 +95,16 @@ SUITES: dict[str, Suite] = {
         status=None,
         tools=_LEAN_TOOLS,
     ),
+    "instcombine-small": Suite(
+        # The 25 constant-free (width-parametric) InstCombine identities
+        # reparametrized to tiny widths -- E5M2 (5 3, 256 values/var) and E5M4
+        # (5 5, 1024 values/var). These have 1-3 free FP variables, so
+        # exhaustive-enumeration genuinely enumerates (feasible for <=2 vars).
+        dataset_dir=pathlib.Path("datasets/instcombine-small"),
+        families=["e5m2", "e5m4"],
+        status=None,
+        tools=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+    ),
     # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
     # that solver stays off by default. Left COMMENTED because there is no working
     # target yet: exhaustive-enumeration is quantifier-free only (leanwuzla's

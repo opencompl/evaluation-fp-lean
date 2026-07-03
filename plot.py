@@ -22,6 +22,22 @@ def _texname(tool: str) -> str:
     return re.sub(r"[^A-Za-z]", "", tool).capitalize()
 
 
+_DIGIT_WORD = {"0": "Zero", "1": "One", "2": "Two", "3": "Three", "4": "Four",
+               "5": "Five", "6": "Six", "7": "Seven", "8": "Eight", "9": "Nine"}
+
+
+def _texprefix(name: str) -> str:
+    """A letters-only CamelCase LaTeX-safe prefix from a suite name. Unlike
+    `_texname` it preserves digits (as words) so suites like `fptg-float8` and
+    `fptg-float16` stay distinct (-> FptgFloatEight vs FptgFloatOneSix)."""
+    out = []
+    for word in re.split(r"[^A-Za-z0-9]+", name):
+        chunk = "".join(_DIGIT_WORD[c] if c.isdigit() else c for c in word)
+        if chunk:
+            out.append(chunk[:1].upper() + chunk[1:])
+    return "".join(out)
+
+
 class ToolStats(TypedDict):
     nunsat: int
     nsat: int
@@ -171,30 +187,37 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     nproblems_total = df["path"].n_unique()
 
-    lines = ["%% Auto-generated LaTeX commands", "", "%% totals"]
-    lines.append(bench.format_newcommand("NumProblemsTotal", nproblems_total))
+    # Prefix every macro with the suite name so several runs' cactus.tex files
+    # can be \input together without redefining each other's commands. Prefer the
+    # manifest's suite (what actually ran); fall back to the --suite option.
+    manifest = indir / "manifest.json"
+    suite_name = json.loads(manifest.read_text())["suite"] if manifest.exists() else opts.suite
+    pfx = _texprefix(suite_name)
+
+    lines = [f"%% Auto-generated LaTeX commands for suite '{suite_name}'", "", "%% totals"]
+    lines.append(bench.format_newcommand(f"{pfx}NumProblemsTotal", nproblems_total))
 
     for tool in tools:
         s = stats[tool]
         cap = _texname(tool)
         per_tool: dict[str, object] = {
-            f"NumUnsat{cap}":     s["nunsat"],
-            f"NumSat{cap}":       s["nsat"],
-            f"NumTimeout{cap}":   s["ntimeout"],
-            f"NumMemout{cap}":    s["nmemout"],
-            f"NumErrors{cap}":    s["nerror"],
-            f"NumChecked{cap}":   s["nchecked"],
-            f"NumDisagreementsWithExpectedStatus{cap}":     s["ndisagree"],
-            f"PercentDisagreementsWithExpectedStatus{cap}": f"{s['pct_disagree']:.2f}",
-            f"GeomeanTime{cap}":  lib.time_str_from_ms(s["geomean_ms"]),
-            f"GeomeanMs{cap}":    f"{s['geomean_ms']:.1f}",
+            f"{pfx}NumUnsat{cap}":     s["nunsat"],
+            f"{pfx}NumSat{cap}":       s["nsat"],
+            f"{pfx}NumTimeout{cap}":   s["ntimeout"],
+            f"{pfx}NumMemout{cap}":    s["nmemout"],
+            f"{pfx}NumErrors{cap}":    s["nerror"],
+            f"{pfx}NumChecked{cap}":   s["nchecked"],
+            f"{pfx}NumDisagreementsWithExpectedStatus{cap}":     s["ndisagree"],
+            f"{pfx}PercentDisagreementsWithExpectedStatus{cap}": f"{s['pct_disagree']:.2f}",
+            f"{pfx}GeomeanTime{cap}":  lib.time_str_from_ms(s["geomean_ms"]),
+            f"{pfx}GeomeanMs{cap}":    f"{s['geomean_ms']:.1f}",
         }
         lines.append("")
         lines.append(f"%% {tool}")
         lines.extend(bench.format_newcommand(k, v) for k, v in per_tool.items())
 
     speedups = {
-        f"Speedup{_texname(a)}Over{_texname(b)}":
+        f"{pfx}Speedup{_texname(a)}Over{_texname(b)}":
             bench.geomean_speedup(stats[b]["geomean_ms"], stats[a]["geomean_ms"])
         for a in tools for b in tools if a != b
     }

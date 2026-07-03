@@ -3,3 +3,4 @@ non-incremental/
 instcombine/
 
 fptg-testsuite/
+instcombine-small/
