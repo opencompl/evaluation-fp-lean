@@ -29,7 +29,7 @@ SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 BITWUZLA_PATH: pathlib.Path = pathlib.Path(
     os.environ.get("BITWUZLA_PATH", "../bitwuzla/build/src/main/bitwuzla"))
 LEANWUZLA_DIR: pathlib.Path = pathlib.Path(
-    os.environ.get("LEANWUZLA_DIR", "Leanwuzla"))
+    os.environ.get("LEANWUZLA_DIR", "leanwuzla"))
 FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 

@@ -49,10 +49,15 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv run echo "setup deps"
 
 # Build Leanwuzla (the SMT-solver CLI the harness drives as the `fplean` tool).
-# It pulls fp-lean in as a Lake dependency, so no separate fp-lean checkout is needed.
+# leanwuzla is a git submodule whose `fp-lean` Lake dependency is the nested
+# `fp-lean-private` submodule (path dep in lake-manifest.json) -- both must be
+# checked out on the host (`git submodule update --init --recursive leanwuzla`)
+# before building the image, since COPY snapshots the host working tree.
 COPY leanwuzla/ leanwuzla/
-RUN cd leanwuzla && git clean -xf .
-RUN cd leanwuzla && git checkout 
+# Strip any stale Lake build output copied from the host. (We can't `git clean`
+# here: the submodule's .git is an unusable gitlink pointing outside the build
+# context.) `.lake` is the only ignored/build artifact leanwuzla produces.
+RUN find leanwuzla -name .lake -type d -prune -exec rm -rf {} +
 RUN cd leanwuzla && lake build
 
 # Build Bitwuzla (the `bitwuzla` baseline tool) from source at a pinned commit.
@@ -82,6 +87,11 @@ COPY datasets/*.tar.zst datasets/
 RUN for f in datasets/*.tar.zst; do \
         tar --use-compress-program=unzstd -xf "$f" -C datasets/; \
     done
+
+# bench.py drives the `fplean` tool from $LEANWUZLA_DIR; pin it to the lowercase
+# submodule dir built above so the container works regardless of the code default
+# (the dir name is case-sensitive: `leanwuzla`, not `Leanwuzla`).
+ENV LEANWUZLA_DIR=/workspace/leanwuzla
 
 CMD /usr/bin/fish
 

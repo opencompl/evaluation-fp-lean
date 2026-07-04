@@ -97,7 +97,9 @@ whenever `Dockerfile`, the dataset, or the Leanwuzla pin changes.
 
 `bench.TOOLS = ["bitwuzla", "fplean"]`.
 
-- `fplean` is the **Leanwuzla** CLI (`Leanwuzla/.lake/build/bin/leanwuzla`),
+- `fplean` is the **Leanwuzla** CLI (`leanwuzla/.lake/build/bin/leanwuzla`),
   invoked as `lake env leanwuzla --timeout <wall-limit> <problem.smt2>` from the
-  Leanwuzla project root. (It replaced the old Blase `blasewuzla` backend.)
+  `leanwuzla` project root (`$LEANWUZLA_DIR`, default `leanwuzla` -- the
+  lowercase submodule dir; the container pins it via `ENV LEANWUZLA_DIR`). (It
+  replaced the old Blase `blasewuzla` backend.)
 - `bitwuzla` is the upstream solver baseline (`BITWUZLA_PATH`).
