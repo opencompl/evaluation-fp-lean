@@ -33,6 +33,15 @@ The tests:
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
   suites back to back (`wintersteiger-supported-family` 2000-sample, then
   `instcombine-small`), each with a cactus plot and suite-prefixed `cactus.tex`.
+- `run-fptg-oracle-tests.sh` / `docker-run-fptg-oracle-tests.sh` — the FPTG oracle
+  **soundness gate**: run fp-lean over an fptg suite (default `fptg-float8`) and
+  fail (exit 1) if any verdict disagrees with the MPFR/PyMPF oracle
+  `(set-info :status)`. Errors on unimplemented ops (fp.max/min/sqrt/
+  roundToIntegral) are tolerated (xfail) and reported per op. Overridable via
+  `SUITE`/`TOOLS`/`NPROBLEMS`. This wraps the `cli.py fptg-oracle-tests`
+  subcommand and is what CI runs (`.github/workflows/fptg-oracle-tests.yml`; the
+  kernel-checked `fplean` path is the blocking gate, `fplean-nokernel` runs
+  informationally because it has a known fp.fma soundness bug).
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.

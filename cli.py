@@ -63,6 +63,29 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
     return out
 
 
+def fptg_oracle_configs(opts: argparse.Namespace) -> list[bench.Config]:
+    """Like `cactus_configs`, but runs only the tools named in `--tools` (default
+    the two fp-lean paths) instead of the whole suite's tool list -- the oracle
+    test grades fp-lean against the :status ground truth, so it needs neither the
+    --fpexp bitwuzla nor the slow exhaustive enumerator."""
+    suite = bench.SUITES[opts.suite]
+    probs = bench.sampled_problems(opts.nproblems, suite)
+    tools = [t.strip() for t in opts.tools.split(",") if t.strip()]
+    out: list[bench.Config] = []
+    for tool in tools:
+        for run in range(opts.runs):
+            for p in probs:
+                out.append({
+                    "tool": tool,
+                    "run": run,
+                    "family": p["family"],
+                    "benchmark": p["benchmark"],
+                    "path": p["path"],
+                    "expected_status": p["expected_status"],
+                })
+    return out
+
+
 def do_run(opts: argparse.Namespace, config_name: str, configs_fn: ConfigFn) -> None:
     outdir = bench.RUNRESULTS_DIR / opts.guid
     if outdir.exists():
@@ -120,6 +143,60 @@ def cmd_debug(opts: argparse.Namespace) -> None:
         do_plot(opts, plot.plot_cactus)
 
 
+def cmd_fptg_oracle_tests(opts: argparse.Namespace) -> None:
+    """Run the fp-lean tools over an fptg suite and grade every verdict against
+    the MPFR/PyMPF oracle :status. Fails (exit 1) on any *wrong* verdict; solver
+    errors on unimplemented ops are tolerated (xfail) but reported per op."""
+    import polars as pl
+
+    if opts.run:
+        do_run(opts, "fptg-oracle-tests", fptg_oracle_configs)
+
+    data_dir = bench.RUNRESULTS_DIR / opts.guid / "data"
+    if not data_dir.exists():
+        print(f"no such guid: {data_dir}")
+        sys.exit(1)
+    df = plot.load(data_dir).with_columns(
+        pl.when(pl.col("is_unsat")).then(pl.lit("unsat"))
+          .when(pl.col("is_sat")).then(pl.lit("sat"))
+          .otherwise(pl.lit(None)).alias("_verdict")
+    )
+    answered = pl.col("is_unsat") | pl.col("is_sat")
+    known = pl.col("expected_status").is_in(["sat", "unsat"])
+
+    tools = [t.strip() for t in opts.tools.split(",") if t.strip()]
+    print(f"\n=== FPTG oracle test: suite '{opts.suite}' ===")
+    any_wrong = False
+    for tool in tools:
+        t = df.filter(pl.col("tool") == tool)
+        if t.height == 0:
+            continue
+        checkable = t.filter(answered & known)
+        wrong = checkable.filter(pl.col("_verdict") != pl.col("expected_status"))
+        errors = t.filter(~(answered | pl.col("is_timeout") | pl.col("is_memout")))
+        ntimeout = t.filter(pl.col("is_timeout")).height
+        agree = checkable.height - wrong.height
+        verdict = "FAIL" if wrong.height else "ok"
+        print(f"\n[{verdict}] {tool}: {agree} correct, {wrong.height} WRONG, "
+              f"{errors.height} error (xfail), {ntimeout} timeout, "
+              f"of {t.height} problems")
+        if errors.height:
+            per_op = (errors.group_by("family").agg(pl.len().alias("n"))
+                            .sort("family"))
+            ops = ", ".join(f"{r['family']}={r['n']}" for r in per_op.iter_rows(named=True))
+            print(f"       xfail errors by op: {ops}")
+        for r in wrong.iter_rows(named=True):
+            any_wrong = True
+            print(f"       WRONG: expected {r['expected_status']} got {r['_verdict']} "
+                  f"-- {r['family']}/{pathlib.Path(r['path']).name}")
+
+    if any_wrong:
+        print("\nFPTG oracle test FAILED: fp-lean disagrees with the oracle above.")
+        sys.exit(1)
+    print("\nFPTG oracle test PASSED: no verdict disagrees with the oracle "
+          "(errors on unimplemented ops tolerated).")
+
+
 def add_common_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--run", action="store_true")
     p.add_argument("--plot", action="store_true")
@@ -141,6 +218,7 @@ def main() -> None:
     dispatch: dict[str, Callable[[argparse.Namespace], None]] = {
         "cactus": cmd_cactus,
         "debug": cmd_debug,
+        "fptg-oracle-tests": cmd_fptg_oracle_tests,
     }
 
     for name in dispatch:
@@ -149,6 +227,13 @@ def main() -> None:
         if name == "debug":
             p.add_argument("--file", required=True, help="path to a single .smt2 file")
             p.set_defaults(runs=1, guid="debug")
+        if name == "fptg-oracle-tests":
+            p.add_argument("--tools", default="fplean,fplean-nokernel",
+                           help="comma-separated tools to grade (default the fp-lean paths)")
+            # A soundness gate: run+grade in one shot, default to the small float8
+            # oracle set, one timing run, a short per-problem timeout.
+            p.set_defaults(run=True, suite="fptg-float8", runs=1,
+                           guid="fptg-oracle-tests", timeout_sec=60)
 
     opts = parser.parse_args()
 
