@@ -17,10 +17,11 @@ TIME_MS_RE: re.Pattern[str] = re.compile(r"Time elapsed:\s*(\d+)\s*ms")
 
 # Cactus plot dimensions (inches), sized for a full-text-width ACM (`acmart`)
 # figure: the `acmart`/sigconf `\textwidth` is ~7.0in (span both columns with a
-# `figure*`), and the height is ~30% of the ~9.25in `\textheight`. Include the
-# PDF at `\includegraphics[width=\textwidth]{cactus.pdf}` for a 1:1 fit.
+# `figure*`), and the height is ~25% of the ~9.25in `\textheight` (a wide, short
+# cactus). Include the PDF at `\includegraphics[width=\textwidth]{cactus.pdf}`
+# for a 1:1 fit.
 CACTUS_WIDTH_IN: float = 7.0
-CACTUS_HEIGHT_IN: float = 2.8
+CACTUS_HEIGHT_IN: float = 2.3
 
 
 def _texname(tool: str) -> str:
