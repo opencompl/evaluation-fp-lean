@@ -15,6 +15,13 @@ import lib
 
 TIME_MS_RE: re.Pattern[str] = re.compile(r"Time elapsed:\s*(\d+)\s*ms")
 
+# Cactus plot dimensions (inches), sized for a full-text-width ACM (`acmart`)
+# figure: the `acmart`/sigconf `\textwidth` is ~7.0in (span both columns with a
+# `figure*`), and the height is ~30% of the ~9.25in `\textheight`. Include the
+# PDF at `\includegraphics[width=\textwidth]{cactus.pdf}` for a 1:1 fit.
+CACTUS_WIDTH_IN: float = 7.0
+CACTUS_HEIGHT_IN: float = 2.8
+
 
 def _texname(tool: str) -> str:
     """Letters-only, capitalized form of a tool name for use in LaTeX
@@ -167,7 +174,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
               f"geomean={lib.time_str_from_ms(s['geomean_ms'])}")
 
     lib.set_global_matplotlib_defaults()
-    fig, ax = plt.subplots(figsize=(6, 3.5))
+    fig, ax = plt.subplots(figsize=(CACTUS_WIDTH_IN, CACTUS_HEIGHT_IN))
     for tool in tools:
         times = stats[tool]["times"]
         if not times:
