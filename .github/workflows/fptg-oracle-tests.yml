@@ -1,0 +1,69 @@
+name: FPTG oracle tests (float8)
+
+# Differential soundness gate: run fp-lean over the float8 slice of the
+# fp_test_generator suite (ground QF_FP problems whose (set-info :status) is an
+# MPFR/PyMPF oracle) and fail if any verdict disagrees with the oracle. Errors on
+# ops fp-lean does not implement yet (fp.max/min/sqrt/roundToIntegral) are
+# tolerated (xfail) and reported per op -- see `cli.py fptg-oracle-tests`.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fptg-oracle-float8:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # fp-lean-private is a private submodule (nested under leanwuzla) referenced
+      # over SSH in .gitmodules. Fetch it via a PAT (repo secret SUBMODULE_PAT) by
+      # rewriting the SSH URL to tokenized HTTPS; .gitmodules is left untouched.
+      - name: Check out submodules (incl. private fp-lean-private)
+        run: |
+          git config --global \
+            url."https://x-access-token:${{ secrets.SUBMODULE_PAT }}@github.com/".insteadOf \
+            "git@github.com:"
+          git submodule sync --recursive
+          git submodule update --init --recursive
+
+      - name: Install elan (Lean toolchain manager)
+        run: |
+          curl https://elan.lean-lang.org/elan-init.sh -sSf | sh -s -- -y
+          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # Cache the built leanwuzla oleans, keyed on the pinned submodule SHAs so a
+      # Leanwuzla/fp-lean bump rebuilds but harness-only edits reuse the build.
+      - name: Cache leanwuzla build
+        uses: actions/cache@v4
+        with:
+          path: |
+            leanwuzla/.lake
+            leanwuzla/fp-lean-private/.lake
+          key: leanwuzla-lake-${{ hashFiles('leanwuzla/lean-toolchain', '.git/modules/leanwuzla/HEAD', '.git/modules/leanwuzla/modules/fp-lean-private/HEAD') }}
+
+      - name: Build leanwuzla
+        run: cd leanwuzla && lake build
+
+      - name: Extract fptg-testsuite dataset
+        run: |
+          sudo apt-get update && sudo apt-get install -y --no-install-recommends zstd
+          tar --use-compress-program=unzstd -xf datasets/fptg-testsuite.tar.zst -C datasets/
+
+      # Blocking gate: the kernel-checked fp-lean path must not disagree with the
+      # oracle on any float8 problem. Errors on unimplemented ops are xfail.
+      - name: fp-lean (kernel-checked) vs oracle
+        run: uv run ./cli.py fptg-oracle-tests --tools fplean --nproc 4 --timeout-sec 60
+
+      # Informational: the no-kernel fast path has a known fp.fma soundness bug
+      # (returns sat where the oracle/kernel say unsat). Reported, not blocking,
+      # until fixed on this branch. Flip to a blocking step once green.
+      - name: fp-lean (no kernel) vs oracle [informational]
+        continue-on-error: true
+        run: uv run ./cli.py fptg-oracle-tests --tools fplean-nokernel --nproc 4 --timeout-sec 60
