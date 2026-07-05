@@ -145,8 +145,10 @@ def cmd_debug(opts: argparse.Namespace) -> None:
 
 def cmd_fptg_oracle_tests(opts: argparse.Namespace) -> None:
     """Run the fp-lean tools over an fptg suite and grade every verdict against
-    the MPFR/PyMPF oracle :status. Fails (exit 1) on any *wrong* verdict; solver
-    errors on unimplemented ops are tolerated (xfail) but reported per op."""
+    the MPFR/PyMPF oracle :status. Every QF_FP op fp-lean parses is bit-blasted
+    (fp.fma, fp.sqrt, fp.min, fp.max, fp.roundToIntegral included), so we expect
+    ALL operations to pass: the gate fails (exit 1) on any *wrong* verdict AND on
+    any solver *error* -- there is no xfail tolerance."""
     import polars as pl
 
     if opts.run:
@@ -167,6 +169,7 @@ def cmd_fptg_oracle_tests(opts: argparse.Namespace) -> None:
     tools = [t.strip() for t in opts.tools.split(",") if t.strip()]
     print(f"\n=== FPTG oracle test: suite '{opts.suite}' ===")
     any_wrong = False
+    any_error = False
     for tool in tools:
         t = df.filter(pl.col("tool") == tool)
         if t.height == 0:
@@ -176,25 +179,33 @@ def cmd_fptg_oracle_tests(opts: argparse.Namespace) -> None:
         errors = t.filter(~(answered | pl.col("is_timeout") | pl.col("is_memout")))
         ntimeout = t.filter(pl.col("is_timeout")).height
         agree = checkable.height - wrong.height
-        verdict = "FAIL" if wrong.height else "ok"
+        verdict = "FAIL" if (wrong.height or errors.height) else "ok"
         print(f"\n[{verdict}] {tool}: {agree} correct, {wrong.height} WRONG, "
-              f"{errors.height} error (xfail), {ntimeout} timeout, "
+              f"{errors.height} error, {ntimeout} timeout, "
               f"of {t.height} problems")
         if errors.height:
+            any_error = True
             per_op = (errors.group_by("family").agg(pl.len().alias("n"))
                             .sort("family"))
             ops = ", ".join(f"{r['family']}={r['n']}" for r in per_op.iter_rows(named=True))
-            print(f"       xfail errors by op: {ops}")
+            print(f"       errors by op: {ops}")
+            for r in errors.head(20).iter_rows(named=True):
+                print(f"       ERROR: {r['family']}/{pathlib.Path(r['path']).name}")
         for r in wrong.iter_rows(named=True):
             any_wrong = True
             print(f"       WRONG: expected {r['expected_status']} got {r['_verdict']} "
                   f"-- {r['family']}/{pathlib.Path(r['path']).name}")
 
-    if any_wrong:
-        print("\nFPTG oracle test FAILED: fp-lean disagrees with the oracle above.")
+    if any_wrong or any_error:
+        why = []
+        if any_wrong:
+            why.append("disagrees with the oracle")
+        if any_error:
+            why.append("errors on ops that are all expected to pass")
+        print(f"\nFPTG oracle test FAILED: fp-lean {' and '.join(why)} (see above).")
         sys.exit(1)
-    print("\nFPTG oracle test PASSED: no verdict disagrees with the oracle "
-          "(errors on unimplemented ops tolerated).")
+    print("\nFPTG oracle test PASSED: every operation decides and every definite "
+          "verdict agrees with the oracle.")
 
 
 def add_common_options(p: argparse.ArgumentParser) -> None:
@@ -231,7 +242,8 @@ def main() -> None:
             p.add_argument("--tools", default="fplean,fplean-nokernel",
                            help="comma-separated tools to grade (default the fp-lean paths)")
             # A soundness gate: run+grade in one shot, default to the small float8
-            # oracle set, one timing run, a short per-problem timeout.
+            # oracle set, one timing run, a short per-problem timeout. Every op is
+            # expected to pass -- wrong verdicts AND solver errors fail the gate.
             p.set_defaults(run=True, suite="fptg-float8", runs=1,
                            guid="fptg-oracle-tests", timeout_sec=60)
 

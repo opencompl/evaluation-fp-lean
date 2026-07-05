@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # FPTG oracle soundness test: run fp-lean over an fptg suite (default the small
 # float8 set) and fail if any verdict disagrees with the MPFR/PyMPF oracle
-# (set-info :status). Errors on ops fp-lean does not implement yet
-# (fp.max/min/sqrt/roundToIntegral) are tolerated (xfail) and reported per op.
+# (set-info :status). Every QF_FP op fp-lean parses is now bit-blasted --
+# fp.fma, fp.sqrt, fp.min, fp.max, and fp.roundToIntegral are wired -- so we
+# expect ALL operations to pass: a solver *error* on any op fails the gate too
+# (there is no xfail tolerance anymore).
 #
 # This is the same gate the CI runs (.github/workflows/fptg-oracle-tests.yml).
 # Runs on the current machine; for the container use ./docker-run-fptg-oracle-tests.sh.

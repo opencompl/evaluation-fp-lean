@@ -267,9 +267,11 @@ Each operator directory splits evenly into `has-no-other-solution` (unsat) and
 | sqrt       |  2828 |  1414 | 1414 |    no     |
 | toIntegral |  2864 |  1432 | 1432 |    no     |
 
-fplean does **not** support `fp.min`, `fp.max`, `fp.sqrt`, `fp.roundToIntegral`
-(explicit "not supported, yet"), times out on `fp.rem`, and does not finish
-`fp.fma`.
+fplean now bit-blasts `fp.min`, `fp.max`, `fp.sqrt`, `fp.roundToIntegral`, and
+`fp.fma` (all pass on the FP8 oracle suite, see `run-fptg-oracle-tests.sh`). On
+the wide wintersteiger formats it still times out on `fp.rem` and does not always
+finish `fp.fma`, so the timing comparison below stays on the eight operators
+where both solvers reliably terminate.
 
 ### What we run: the `wintersteiger-supported-family` suite
 

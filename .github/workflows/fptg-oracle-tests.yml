@@ -2,9 +2,10 @@ name: FPTG oracle tests (float8)
 
 # Differential soundness gate: run fp-lean over the float8 slice of the
 # fp_test_generator suite (ground QF_FP problems whose (set-info :status) is an
-# MPFR/PyMPF oracle) and fail if any verdict disagrees with the oracle. Errors on
-# ops fp-lean does not implement yet (fp.max/min/sqrt/roundToIntegral) are
-# tolerated (xfail) and reported per op -- see `cli.py fptg-oracle-tests`.
+# MPFR/PyMPF oracle) and fail if any verdict disagrees with the oracle. Every op
+# fp-lean parses (incl. fp.fma/sqrt/min/max/roundToIntegral) is now bit-blasted
+# and expected to pass, so a solver error on any op also fails the gate (no xfail
+# tolerance) -- see `cli.py fptg-oracle-tests`.
 
 on:
   push:
@@ -57,8 +58,9 @@ jobs:
           tar --use-compress-program=unzstd -xf datasets/fptg-testsuite.tar.zst -C datasets/
 
       # Blocking gate: neither fp-lean path may disagree with the oracle on any
-      # float8 problem. Errors on unimplemented ops are xfail. The no-kernel path's
-      # fp.fma soundness bug (spurious sat) was fixed by tagging
+      # float8 problem, and neither may error -- every op (fp.fma/sqrt/min/max/
+      # roundToIntegral now wired) must decide. The no-kernel path's fp.fma
+      # soundness bug (spurious sat) was fixed by tagging
       # UnpackedFloat.extendWidths @[bv_normalize], so both paths are now green.
       - name: fp-lean (kernel-checked) vs oracle
         run: uv run ./cli.py fptg-oracle-tests --tools fplean --nproc 4 --timeout-sec 60
