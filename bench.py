@@ -81,6 +81,22 @@ SUITES: dict[str, Suite] = {
         status=None,
         tools=_LEAN_TOOLS,
     ),
+    "wintersteiger-uniform-family": Suite(
+        # Every wintersteiger operator, unsat only, sampled UNIFORMLY per
+        # operator: stratified=True makes --nproblems a *per-family* cap, so each
+        # of the 14 operator families contributes min(nproblems, family-size)
+        # problems and is equally weighted -- unlike wintersteiger-all-family /
+        # -supported-family, where --nproblems is a flat total over the pooled
+        # families. unsat-only keeps verdicts oracle-checkable. fplean errors or
+        # times out on the ops it does not support (fp.min/max/sqrt/
+        # roundToIntegral/rem/fma) -- informative for per-operator coverage.
+        dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
+        families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
+                  "fma", "max", "min", "rem", "sqrt", "toIntegral"],
+        status="unsat",
+        tools=_LEAN_TOOLS,
+        stratified=True,
+    ),
     "wintersteiger-supported-family": Suite(
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
         # ops fplean solves; it does NOT support fp.min/fp.max/fp.sqrt/

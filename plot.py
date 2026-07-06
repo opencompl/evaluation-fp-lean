@@ -142,6 +142,31 @@ def compute_tool_stats(df: pl.DataFrame, agg: pl.DataFrame, tool: bench.ToolName
     }
 
 
+def _annotate_endpoint_labels(ax, endpoints: list[tuple[float, int, str, str]]) -> None:
+    """Label each cactus curve's endpoint with "<solver>: <#solved>".
+
+    `endpoints` is a list of (x, n_solved, text, color). The y-coordinate of a
+    curve's end IS its solved count, so tools that solved the same number would
+    overprint; nudge the labels apart vertically (keeping their order) with a
+    minimum gap, and extend the y-limit if the topmost nudged label would clip.
+    """
+    if not endpoints:
+        return
+    ymin, ymax = ax.get_ylim()
+    gap = (ymax - ymin) * 0.06  # minimum vertical spacing between labels
+    label_y = [float(n) for _, n, _, _ in endpoints]
+    prev = float("-inf")
+    for i in sorted(range(len(endpoints)), key=lambda i: endpoints[i][1]):
+        label_y[i] = max(label_y[i], prev + gap)
+        prev = label_y[i]
+    top = max(label_y)
+    if top > ymax:
+        ax.set_ylim(ymin, top + gap * 0.5)  # headroom so the top label isn't clipped
+    for (x, _n, text, color), y in zip(endpoints, label_y):
+        ax.annotate(text, xy=(x, y), xytext=(4, 0), textcoords="offset points",
+                    va="center", ha="left", fontsize=8, color=color)
+
+
 def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namespace) -> None:
     outdir.mkdir(parents=True, exist_ok=True)
     df = load(indir)
@@ -183,6 +208,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     lib.set_global_matplotlib_defaults()
     fig, ax = plt.subplots(figsize=(CACTUS_WIDTH_IN, CACTUS_HEIGHT_IN))
+    endpoints: list[tuple[float, int, str, str]] = []  # (x, #solved, label, color)
     for tool in tools:
         if tool in CACTUS_HIDDEN_TOOLS:
             continue
@@ -190,15 +216,23 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
         if not times:
             continue
         cum = np.cumsum(times)
-        ax.plot(cum, range(1, len(cum) + 1),
+        n_solved = len(cum)
+        ax.plot(cum, range(1, n_solved + 1),
                 label=bench.tool2label[tool],
                 color=bench.tool2color[tool],
                 linewidth=2)
+        endpoints.append((float(cum[-1]), n_solved,
+                          f"{bench.tool2label[tool]}: {n_solved}",
+                          bench.tool2color[tool]))
     ax.set_xscale("log")
     ax.set_xlabel("Cumulative time elapsed (ms)")
     ax.set_ylabel("# problems solved (unsat)")
     ax.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.5)
     ax.legend()
+    ax.margins(x=0.18)  # right-side headroom for the endpoint labels
+    # Label each curve's endpoint with "<solver>: <#solved>" (nudged apart on
+    # ties), so the plot is readable without the legend or the cactus.tex macros.
+    _annotate_endpoint_labels(ax, endpoints)
     fig.tight_layout()
     lib.save_fig(fig, str(outdir / "cactus.pdf"), str(outdir / "cactus.png"))
 

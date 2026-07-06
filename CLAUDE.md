@@ -28,6 +28,12 @@ The tests:
 - `run-wintersteiger-all-family.sh` / `docker-run-wintersteiger-all-family.sh` —
   the full wintersteiger family (every operator, sat and unsat; ~40k). Pair with
   `NPROBLEMS` to sample, since fplean cannot solve most of it.
+- `run-wintersteiger-uniform-family.sh` /
+  `docker-run-wintersteiger-uniform-family.sh` — every wintersteiger operator,
+  unsat only, sampled **uniformly per operator** (the stratified
+  `wintersteiger-uniform-family` suite). Because it is stratified, `NPROBLEMS` is
+  a **per-family cap**, so each operator contributes `min(NPROBLEMS, family-size)`
+  and is equally weighted; unset `NPROBLEMS` runs the whole unsat set.
 - `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
   all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's three
@@ -86,6 +92,12 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   ~11.5k). The `run-wintersteiger-supported-family*.sh` scripts pass this suite.
 - `wintersteiger-all-family` — the whole wintersteiger family: every operator,
   sat and unsat (~40k). fplean can only solve a fraction.
+- `wintersteiger-uniform-family` — every wintersteiger operator, unsat only,
+  **stratified** (`stratified=True`), so `--nproblems` is a **per-family cap**:
+  each of the 14 operators contributes `min(nproblems, family-size)` and is
+  equally weighted (unlike `wintersteiger-all-family`/`-supported-family`, whose
+  `--nproblems` is a flat total over the pooled families). fplean errors/times
+  out on the ops it does not support — informative for per-operator coverage.
 - `instcombine-fp-problems` — ~101 QF_FP equivalence checks extracted from LLVM
   InstCombine tests (`datasets/instcombine.tar.zst`; not SMT-LIB).
 - `fptg-float8` / `fptg-float16` / `fptg-bfloat16` — Schanda's `fp_test_generator`
