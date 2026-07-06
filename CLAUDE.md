@@ -51,6 +51,14 @@ The tests:
   `NPROBLEMS` here is a **per-family cap** (not a total): each family contributes
   `min(NPROBLEMS, family-size)` problems, so the small real-world families are
   represented. `NPROBLEMS=300` -> 712 files. Deterministic (seed 42).
+- `run-full-smtlib-fast.sh` / `docker-run-full-smtlib-fast.sh` — a **soundness
+  sweep over the entire QF_FP set** (all 8 families, ~40,406 problems), all four
+  tools, with a short `TIMEOUT_SEC=10` so the full run finishes in a few hours
+  and can be looped. Reuses the stratified `smtlib-rand` suite with a per-family
+  cap of 40000 (>= the largest family, so "take everything" = all of QF_FP, not
+  a sample). Not a timing measurement — the point is to catch soundness
+  regressions across all of QF_FP (`plot.py` grades every verdict against the
+  declared `(set-info :status)`). Defaults to `NPROC=24`.
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
