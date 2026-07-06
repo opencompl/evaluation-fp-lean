@@ -59,6 +59,13 @@ The tests:
   a sample). Not a timing measurement — the point is to catch soundness
   regressions across all of QF_FP (`plot.py` grades every verdict against the
   declared `(set-info :status)`). Defaults to `NPROC=24`.
+- `run-full-smtlib-trustworthy.sh` / `docker-run-full-smtlib-trustworthy.sh` —
+  same full-QF_FP coverage as `run-full-smtlib-fast`, but tuned for
+  **trustworthy per-problem timings** (the run whose cactus/geomean numbers you
+  report): `NPROC=14` (<= the 16 physical cores of the Ryzen 9 9950X, below the
+  SMT-sibling threshold, with headroom) and the full `TIMEOUT_SEC=60` so
+  recorded solve times are the real ones. The `-fast` companion (NPROC=24, 10s)
+  is for quick soundness looping where per-problem times don't matter.
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
