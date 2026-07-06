@@ -62,7 +62,7 @@ class ToolStats(TypedDict):
 def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
     ok = not (r["is_timeout"] or r["is_memout"] or r["is_exception"])
     tool = r["tool"]
-    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
         # leanwuzla reports its verdict as `sat`/`unsat` on stdout and exits 0
         # (it does not use the 10/20 SMT-COMP exit codes). Failures such as the
         # "potentially spurious counterexample" abstraction error print neither

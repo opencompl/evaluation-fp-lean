@@ -20,7 +20,7 @@ import lib
 from runwithlimits import run_with_limits
 
 
-ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"]
+ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"]
 
 SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 # Paths default to the container layout but can be overridden via the
@@ -36,7 +36,7 @@ RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 # The registry of all known tools, in display order. Which subset actually runs
 # is per-suite (see Suite.tools); plotting filters this to the tools present in
 # the data.
-TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"]
+TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"]
 
 @dataclass(frozen=True)
 class Suite:
@@ -60,7 +60,7 @@ class Suite:
 #                                   The default.
 #   instcombine-fp-problems         QF_FP equivalence checks extracted from LLVM
 #                                   InstCombine tests (llvm-fp-bv-smt-extractor).
-_LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
+_LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon"]
 
 # The 12 operation subdirectories in each fptg-testsuite format. fplean does not
 # support all of them (it errors on e.g. fp.max/min/sqrt/rem/roundToIntegral),
@@ -103,7 +103,7 @@ SUITES: dict[str, Suite] = {
         dataset_dir=pathlib.Path("datasets/instcombine-small"),
         families=["e5m2", "e5m4"],
         status=None,
-        tools=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+        tools=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
     ),
     # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
     # that solver stays off by default. Left COMMENTED because there is no working
@@ -149,10 +149,10 @@ DEFAULT_SUITE: str = "wintersteiger-supported-family"
 
 tool2color: dict[ToolName, str] = {
     "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0",
-    "exhaustive-enumeration": "#8E24AA"}
+    "fplean-nonancanon": "#C62828", "exhaustive-enumeration": "#8E24AA"}
 tool2label: dict[ToolName, str] = {
     "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)",
-    "exhaustive-enumeration": "Exhaustive enum"}
+    "fplean-nonancanon": "FP-Lean (no NaN canon)", "exhaustive-enumeration": "Exhaustive enum"}
 
 
 class Problem(TypedDict):
@@ -261,7 +261,7 @@ def write_machine_data_tex(folder: pathlib.Path) -> None:
 
 
 def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[str]:
-    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
         # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
         # match the harness limit so it isn't cut off before bitwuzla is.
         # --maxHeartbeats is raised far above the default (200000) so that simp
@@ -273,6 +273,10 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
             # skip the Lean kernel re-check of the bvDecide reflection proof;
             # only the LRAT certificate is verified (Leanwuzla decideSmtNoKernel).
             cmd.append("--disableKernel")
+        if tool == "fplean-nonancanon":
+            # disable the staged FP pack/unpack-cancellation pipeline whose NaN
+            # canonicalization rests on the unproven `Canonical_all` axiom.
+            cmd.append("--disable-fp-normalize")
         if tool == "exhaustive-enumeration":
             # decide the goal by native-evaluating a Decidable instance over all
             # FP values instead of bv_decide (only feasible for tiny bit-widths).
@@ -285,7 +289,7 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
 
 
 def tool_cwd(tool: ToolName) -> Optional[str]:
-    if tool in ("fplean", "fplean-nokernel", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
         # run from the Leanwuzla project root so `lake env` finds the lakefile/oleans.
         return str(LEANWUZLA_DIR.absolute())
     return None
