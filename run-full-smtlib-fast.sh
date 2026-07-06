@@ -14,7 +14,7 @@
 #
 # Runs directly on the current machine (uses the locally-built leanwuzla, so it
 # picks up local fixes without an image rebuild). For the container use
-# ./docker-run-full-smtlib-fast.sh (rebuild the image first to include fixes).
+# ./run-full-smtlib-fast-docker.sh (rebuild the image first to include fixes).
 #   BITWUZLA_PATH=/usr/local/bin/bitwuzla LEANWUZLA_DIR=leanwuzla \
 #     ./run-full-smtlib-fast.sh
 #

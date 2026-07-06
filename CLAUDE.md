@@ -51,7 +51,7 @@ The tests:
   `NPROBLEMS` here is a **per-family cap** (not a total): each family contributes
   `min(NPROBLEMS, family-size)` problems, so the small real-world families are
   represented. `NPROBLEMS=300` -> 712 files. Deterministic (seed 42).
-- `run-full-smtlib-fast.sh` / `docker-run-full-smtlib-fast.sh` — a **soundness
+- `run-full-smtlib-fast.sh` / `run-full-smtlib-fast-docker.sh` — a **soundness
   sweep over the entire QF_FP set** (all 8 families, ~40,406 problems), all four
   tools, with a short `TIMEOUT_SEC=10` so the full run finishes in a few hours
   and can be looped. Reuses the stratified `smtlib-rand` suite with a per-family
@@ -59,13 +59,14 @@ The tests:
   a sample). Not a timing measurement — the point is to catch soundness
   regressions across all of QF_FP (`plot.py` grades every verdict against the
   declared `(set-info :status)`). Defaults to `NPROC=24`.
-- `run-full-smtlib-trustworthy.sh` / `docker-run-full-smtlib-trustworthy.sh` —
+- `run-full-smtlib-trustworthy.sh` / `run-full-smtlib-trustworthy-docker.sh` —
   same full-QF_FP coverage as `run-full-smtlib-fast`, but tuned for
   **trustworthy per-problem timings** (the run whose cactus/geomean numbers you
   report): `NPROC=14` (<= the 16 physical cores of the Ryzen 9 9950X, below the
-  SMT-sibling threshold, with headroom) and the full `TIMEOUT_SEC=60` so
-  recorded solve times are the real ones. The `-fast` companion (NPROC=24, 10s)
-  is for quick soundness looping where per-problem times don't matter.
+  SMT-sibling threshold, with headroom) so recorded solve times are uncontended.
+  `TIMEOUT_SEC=10` (kernel-checked fplean solves nothing in the 10-60s window, so
+  a 10s cap costs it no solves while cutting the timeout tail 6x). The `-fast`
+  companion (NPROC=24) is for quick soundness looping where times don't matter.
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
