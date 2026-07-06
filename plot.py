@@ -23,6 +23,13 @@ TIME_MS_RE: re.Pattern[str] = re.compile(r"Time elapsed:\s*(\d+)\s*ms")
 CACTUS_WIDTH_IN: float = 7.0
 CACTUS_HEIGHT_IN: float = 2.3
 
+# Tools to omit from the cactus *curve* (still run, still reported in the summary
+# and the LaTeX macros). fplean-nonancanon is visually identical to fplean on the
+# QF_FP suites -- the NaN-canon pack/unpack rewrite it disables almost never fires
+# on these single-op problems -- so its curve just overplots fplean and clutters
+# the legend. Hide it from the plot.
+CACTUS_HIDDEN_TOOLS: set[str] = {"fplean-nonancanon"}
+
 
 def _texname(tool: str) -> str:
     """Letters-only, capitalized form of a tool name for use in LaTeX
@@ -177,6 +184,8 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     lib.set_global_matplotlib_defaults()
     fig, ax = plt.subplots(figsize=(CACTUS_WIDTH_IN, CACTUS_HEIGHT_IN))
     for tool in tools:
+        if tool in CACTUS_HIDDEN_TOOLS:
+            continue
         times = stats[tool]["times"]
         if not times:
             continue
