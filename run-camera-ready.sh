@@ -45,7 +45,12 @@ ensure_dataset() {
 }
 
 # wintersteiger-supported-family and smtlib-rand both read datasets/non-incremental/QF_FP.
-ensure_dataset datasets/non-incremental/QF_FP datasets/QF_FP.tar.zst
+# Sentinel on a NON-wintersteiger family (griggio): a checkout may have only
+# wintersteiger extracted (it's the main suite), which would leave the parent dir
+# present but the smtlib-rand suite's other 7 families missing -- so it would
+# silently degrade to a wintersteiger-only sample. Checking griggio forces a full
+# extract in that case.
+ensure_dataset datasets/non-incremental/QF_FP/griggio datasets/QF_FP.tar.zst
 # instcombine-small reads datasets/instcombine-small.
 ensure_dataset datasets/instcombine-small datasets/instcombine-small.tar.zst
 

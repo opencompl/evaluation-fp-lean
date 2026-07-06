@@ -6,7 +6,7 @@
 cd "$(dirname "$0")"
 
 envargs=()
-for var in GUID NPROBLEMS RUNS TIMEOUT_SEC MEMOUT_MB NPROC FILE SUITE TOOLS; do
+for var in GUID NPROBLEMS SMTLIB_RAND_NPROBLEMS RUNS TIMEOUT_SEC MEMOUT_MB NPROC FILE SUITE TOOLS; do
     if [ -n "${!var:-}" ]; then
         envargs+=(-e "$var=${!var}")
     fi
