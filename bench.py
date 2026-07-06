@@ -45,6 +45,8 @@ class Suite:
     status: Optional[str]       # keep only this (set-info :status ...), or None
     tools: list[ToolName]       # which solvers to run for this suite
     name_regex: str = ".*"      # keep only files whose name matches this regex
+    stratified: bool = False    # if True, --nproblems is a *per-family* cap (see
+                                # sampled_problems); else it is a total sample size
 
 
 # The benchmark suites, selected with `cli.py <cmd> --suite <name>`. A suite
@@ -104,6 +106,27 @@ SUITES: dict[str, Suite] = {
         families=["e5m2", "e5m4"],
         status=None,
         tools=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
+    ),
+    "smtlib-rand": Suite(
+        # A cross-family QF_FP sample: every top-level SMT-LIB QF_FP family, not
+        # just wintersteiger (which is ~99% of the 40.4k-file set). Stratified so
+        # the tiny real-world families are represented -- `--nproblems` is a
+        # PER-FAMILY cap, so each family contributes min(cap, size) problems
+        # (e.g. cap=300 -> 712 files: wintersteiger 300, griggio 214, Vector 91,
+        # schanda 44, ramalho 36, UA2019 24, Heizmann 2, UA2023 1). status=None:
+        # sat, unsat and unknown are all kept (a coverage survey, not an oracle
+        # set -- plot.py grades disagreement only where :status is known). QF_FP
+        # is quantifier-free throughout. wintersteiger is one family here (rooted
+        # at the QF_FP dir), so its sample spans every operator subdir including
+        # the ones fplean does not support -- informative for coverage.
+        dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP"),
+        families=["20170501-Heizmann-UltimateAutomizer",
+                  "20190429-UltimateAutomizerSvcomp2019",
+                  "20210211-Vector", "20230321-UltimateAutomizerSvcomp2023",
+                  "griggio", "ramalho", "schanda", "wintersteiger"],
+        status=None,
+        tools=_LEAN_TOOLS,
+        stratified=True,
     ),
     # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
     # that solver stays off by default. Left COMMENTED because there is no working
@@ -332,7 +355,25 @@ def fp_problems(suite: Suite) -> list[Problem]:
 
 def sampled_problems(n: Optional[int], suite: Suite) -> list[Problem]:
     probs = fp_problems(suite)
-    if n is None or n >= len(probs):
+    if n is None:
+        return probs
+    if suite.stratified:
+        # `n` is a *per-family* cap: take up to n problems from each family so
+        # every family is represented regardless of the huge size imbalance
+        # (in QF_FP, wintersteiger is ~99% of the set, so a uniform sample would
+        # be ~all wintersteiger and draw 0 from the tiny families). Deterministic
+        # (seed 42): one RNG, families visited in sorted order.
+        by_family: dict[str, list[Problem]] = {}
+        for p in probs:
+            by_family.setdefault(p["family"], []).append(p)
+        rng = random.Random(SEED)
+        out: list[Problem] = []
+        for family in sorted(by_family):
+            fam = by_family[family]
+            out.extend(fam if n >= len(fam) else rng.sample(fam, n))
+        out.sort(key=lambda d: d["benchmark"])
+        return out
+    if n >= len(probs):
         return probs
     return random.Random(SEED).sample(probs, n)
 

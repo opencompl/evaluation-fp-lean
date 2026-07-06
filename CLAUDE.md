@@ -42,6 +42,12 @@ The tests:
   subcommand and is what CI runs (`.github/workflows/fptg-oracle-tests.yml`; the
   kernel-checked `fplean` path is the blocking gate, `fplean-nokernel` runs
   informationally because it has a known fp.fma soundness bug).
+- `run-smtlib-rand.sh` / `docker-run-smtlib-rand.sh` — all four tools on a
+  **stratified** sample across **every** QF_FP family (not just wintersteiger,
+  which is ~99% of QF_FP). Because the `smtlib-rand` suite is stratified,
+  `NPROBLEMS` here is a **per-family cap** (not a total): each family contributes
+  `min(NPROBLEMS, family-size)` problems, so the small real-world families are
+  represented. `NPROBLEMS=300` -> 712 files. Deterministic (seed 42).
 
 All accept env overrides, e.g. `NPROBLEMS=8 RUNS=2 ./run-smoke.sh` or
 `TIMEOUT_SEC=900 ./docker-run-all.sh`.
@@ -76,6 +82,18 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   (`datasets/instcombine-small.tar.zst`). These have 1-3 free FP variables, so
   `exhaustive-enumeration` genuinely enumerates (feasible for ≤2 vars, times out
   beyond). All four tools run.
+- `smtlib-rand` — a sample across **all 8** top-level QF_FP families
+  (`datasets/non-incremental/QF_FP`: wintersteiger + griggio, ramalho, schanda,
+  20210211-Vector and the three UltimateAutomizer sets), not just wintersteiger.
+  QF_FP is ~99% wintersteiger (39,994 of 40,406 files), so this suite is the only
+  **stratified** one (`Suite.stratified=True`): `--nproblems` is a **per-family
+  cap**, so `sampled_problems` takes `min(cap, family-size)` per family and every
+  family is represented (`cap=300` -> 712 files). `status=None` keeps sat/unsat/
+  unknown (a coverage survey, not an oracle set); all four tools run. The
+  non-wintersteiger families are small real-world float32/float64 verification
+  problems — mostly fplean-operator-compatible but hard, so fplean often times
+  out (informative for coverage). To make a suite stratified, set
+  `stratified=True` on its `bench.Suite`.
 
 Each benchmark's declared `(set-info :status ...)` is recorded per problem as
 `expected_status` and threaded into the records. `plot.py` grades every solver
