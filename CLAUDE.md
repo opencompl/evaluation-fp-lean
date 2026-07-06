@@ -30,9 +30,12 @@ The tests:
   `NPROBLEMS` to sample, since fplean cannot solve most of it.
 - `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
   all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
-- `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
-  suites back to back (`wintersteiger-supported-family` 2000-sample, then
-  `instcombine-small`), each with a cactus plot and suite-prefixed `cactus.tex`.
+- `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's three
+  headline suites back to back (`wintersteiger-supported-family` 2000-sample,
+  then `instcombine-small`, then `smtlib-rand`), each with a cactus plot and
+  suite-prefixed `cactus.tex`. `smtlib-rand` is stratified, so its per-family cap
+  is a separate `SMTLIB_RAND_NPROBLEMS` knob (default 300) distinct from the
+  `NPROBLEMS` total that sizes the wintersteiger sample.
 - `run-fptg-oracle-tests.sh` / `docker-run-fptg-oracle-tests.sh` — the FPTG oracle
   **soundness gate**: run fp-lean over an fptg suite (default `fptg-float8`) and
   fail (exit 1) if any verdict disagrees with the MPFR/PyMPF oracle
