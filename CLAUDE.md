@@ -36,12 +36,14 @@ The tests:
   and is equally weighted; unset `NPROBLEMS` runs the whole unsat set.
 - `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
   all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
-- `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's three
-  headline suites back to back (`wintersteiger-supported-family` 2000-sample,
-  then `instcombine-small`, then `smtlib-rand`), each with a cactus plot and
-  suite-prefixed `cactus.tex`. `smtlib-rand` is stratified, so its per-family cap
-  is a separate `SMTLIB_RAND_NPROBLEMS` knob (default 300) distinct from the
-  `NPROBLEMS` total that sizes the wintersteiger sample.
+- `run-instcombine-small.sh` / `docker-run-instcombine-small.sh` — all 50
+  tiny-width E5M2/E5M4 InstCombine-small identities, all four tools (including
+  `exhaustive-enumeration`). This is the instcombine leg of the camera-ready.
+- `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
+  suites back to back (`wintersteiger-uniform-family`, then `instcombine-small`),
+  each with a cactus plot and suite-prefixed `cactus.tex`. `wintersteiger-uniform-family`
+  is stratified, so `NPROBLEMS` is a **per-family cap** (default 150 -> 150×14 =
+  2100 problems), not a total; `instcombine-small` always runs all 50.
 - `run-fptg-oracle-tests.sh` / `docker-run-fptg-oracle-tests.sh` — the FPTG oracle
   **soundness gate**: run fp-lean over an fptg suite (default `fptg-float8`) and
   fail (exit 1) if any verdict disagrees with the MPFR/PyMPF oracle

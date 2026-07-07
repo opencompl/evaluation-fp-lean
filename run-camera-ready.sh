@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
-# Camera-ready run: regenerate the paper's three headline result sets, each with
-# a cactus plot and a suite-prefixed cactus.tex (so all can be \input together):
+# Camera-ready run: regenerate the paper's two headline result sets, each with a
+# cactus plot and a suite-prefixed cactus.tex (so both can be \input together):
 #
-#   (a) wintersteiger-supported-family -- 2000-problem sample (seed 42), bitwuzla
-#       vs the fp-lean pair on the unsat supported QF_FP set.
+#   (a) wintersteiger-uniform-family -- a STRATIFIED sample of the wintersteiger
+#       QF_FP set: every operator, unsat only, weighted equally. Because it is
+#       stratified, NPROBLEMS is a PER-FAMILY cap (default 150 -> 150*14 = 2100
+#       problems), not a total. bitwuzla vs the fp-lean pair (kernel + no-kernel).
 #   (b) instcombine-small -- all 50 tiny-width (E5M2/E5M4) InstCombine identities,
 #       a 4-way comparison including exhaustive-enumeration.
-#   (c) smtlib-rand -- a stratified sample across ALL 8 QF_FP families (not just
-#       wintersteiger), all four tools. NPROBLEMS here is a PER-FAMILY cap.
 #
 # Runs on the current machine; for the container use ./docker-run-camera-ready.sh.
 # Locally, pass host solver paths. NOTE: instcombine-small uses the non-standard
@@ -15,14 +15,13 @@
 # does (the earlier "--fpexp" worry was actually a define-const issue, now fixed):
 #   BITWUZLA_PATH=/path/to/bitwuzla LEANWUZLA_DIR=leanwuzla ./run-camera-ready.sh
 #
-# Override knobs via env, e.g.  NPROBLEMS=500 TIMEOUT_SEC=120 ./run-camera-ready.sh
+# Override knobs via env, e.g.  NPROBLEMS=200 TIMEOUT_SEC=60 ./run-camera-ready.sh
 set -euo pipefail
 cd "$(dirname "$0")"
 
-NPROBLEMS="${NPROBLEMS:-2000}"   # sample size for (a); (b) always runs all 50
-# smtlib-rand (c) is stratified, so its --nproblems is a PER-FAMILY cap, not a
-# total; keep it separate from (a)'s total sample size.
-SMTLIB_RAND_NPROBLEMS="${SMTLIB_RAND_NPROBLEMS:-300}"
+# wintersteiger-uniform-family (a) is stratified, so NPROBLEMS is a PER-FAMILY
+# cap; 150 -> 2100 problems across the 14 operators. (b) always runs all 50.
+NPROBLEMS="${NPROBLEMS:-150}"
 RUNS="${RUNS:-1}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-60}"
 MEMOUT_MB="${MEMOUT_MB:-8000}"
@@ -44,38 +43,25 @@ ensure_dataset() {
     tar --use-compress-program=unzstd -xf "$tarball" -C datasets/
 }
 
-# wintersteiger-supported-family and smtlib-rand both read datasets/non-incremental/QF_FP.
-# Sentinel on a NON-wintersteiger family (griggio): a checkout may have only
-# wintersteiger extracted (it's the main suite), which would leave the parent dir
-# present but the smtlib-rand suite's other 7 families missing -- so it would
-# silently degrade to a wintersteiger-only sample. Checking griggio forces a full
-# extract in that case.
-ensure_dataset datasets/non-incremental/QF_FP/griggio datasets/QF_FP.tar.zst
+# wintersteiger-uniform-family reads datasets/non-incremental/QF_FP/wintersteiger.
+ensure_dataset datasets/non-incremental/QF_FP/wintersteiger datasets/QF_FP.tar.zst
 # instcombine-small reads datasets/instcombine-small.
 ensure_dataset datasets/instcombine-small datasets/instcombine-small.tar.zst
 
-echo "== camera-ready (1/3): wintersteiger-supported-family sample =="
+echo "== camera-ready (1/2): wintersteiger-uniform-family (stratified, per-family cap $NPROBLEMS) =="
 uv run ./cli.py cactus --run --plot \
-    --suite wintersteiger-supported-family \
-    --guid wintersteiger-supported-family-sample \
+    --suite wintersteiger-uniform-family \
+    --guid wintersteiger-uniform-family \
     --nproblems "$NPROBLEMS" \
     --runs "$RUNS" --timeout-sec "$TIMEOUT_SEC" --memout-mb "$MEMOUT_MB" --nproc "$NPROC"
 
-echo "== camera-ready (2/3): instcombine-small =="
+echo "== camera-ready (2/2): instcombine-small =="
 uv run ./cli.py cactus --run --plot \
     --suite instcombine-small \
     --guid instcombine-small \
     --runs "$RUNS" --timeout-sec "$TIMEOUT_SEC" --memout-mb "$MEMOUT_MB" --nproc "$NPROC"
 
-echo "== camera-ready (3/3): smtlib-rand (stratified, per-family cap $SMTLIB_RAND_NPROBLEMS) =="
-uv run ./cli.py cactus --run --plot \
-    --suite smtlib-rand \
-    --guid smtlib-rand \
-    --nproblems "$SMTLIB_RAND_NPROBLEMS" \
-    --runs "$RUNS" --timeout-sec "$TIMEOUT_SEC" --memout-mb "$MEMOUT_MB" --nproc "$NPROC"
-
 echo
 echo "camera-ready outputs:"
-echo "  runresults/wintersteiger-supported-family-sample/outputs/plots/cactus/  (\\WintersteigerSupportedFamily... macros)"
-echo "  runresults/instcombine-small/outputs/plots/cactus/                      (\\InstcombineSmall... macros)"
-echo "  runresults/smtlib-rand/outputs/plots/cactus/                            (\\SmtlibRand... macros)"
+echo "  runresults/wintersteiger-uniform-family/outputs/plots/cactus/  (\\WintersteigerUniformFamily... macros)"
+echo "  runresults/instcombine-small/outputs/plots/cactus/             (\\InstcombineSmall... macros)"
