@@ -4,10 +4,14 @@
 #
 #   (a) smtlib-rand -- a uniform sample across ALL 8 top-level SMT-LIB QF_FP
 #       families (not just wintersteiger): it is STRATIFIED, so NPROBLEMS is a
-#       PER-FAMILY cap (default 300 -> 712 files), giving every family equal
-#       representation. Keeps sat/unsat/unknown; the cactus counts every solve
-#       (sat OR unsat that doesn't contradict the oracle). bitwuzla vs the fp-lean
-#       pair (kernel + no-kernel).
+#       PER-FAMILY cap (default 4000 -> 4412 files), giving every family equal
+#       representation. Only wintersteiger exceeds the cap (~40k files, capped at
+#       4000); the other 7 families are all included in full (412 files: griggio
+#       214, Vector 91, schanda 44, ramalho 36, UA2019 24, Heizmann 2, UA2023 1).
+#       Keeps sat/unsat/unknown; the cactus counts every solve (sat OR unsat that
+#       doesn't contradict the oracle). bitwuzla vs the fp-lean pair (kernel +
+#       no-kernel). At NPROC=14 (the trustworthy-timing ceiling on a 16-core box)
+#       this leg runs in ~1 h.
 #   (b) instcombine-small -- all 100 tiny-width InstCombine identities (E5M2/E5M4/
 #       isoslow/bf16), a 4-way comparison including exhaustive-enumeration.
 #
@@ -20,13 +24,16 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-# smtlib-rand (a) is stratified, so NPROBLEMS is a PER-FAMILY cap; 300 -> 712
+# smtlib-rand (a) is stratified, so NPROBLEMS is a PER-FAMILY cap; 4000 -> 4412
 # files across the 8 QF_FP families. (b) always runs all 100.
-NPROBLEMS="${NPROBLEMS:-300}"
+NPROBLEMS="${NPROBLEMS:-4000}"
 RUNS="${RUNS:-1}"
 TIMEOUT_SEC="${TIMEOUT_SEC:-60}"
 MEMOUT_MB="${MEMOUT_MB:-8000}"
-NPROC="${NPROC:-6}"
+# NPROC=14: below the 16 physical cores of the Ryzen 9 9950X (uncontended, so
+# recorded per-problem timings stay trustworthy) yet high enough that the cap-4000
+# smtlib-rand leg finishes in ~1 h.
+NPROC="${NPROC:-14}"
 
 # Extract a dataset tarball if its tree isn't already unpacked. Locally the
 # datasets/*.tar.zst archives are shipped but not extracted (the container image
