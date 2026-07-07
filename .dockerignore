@@ -1,0 +1,5 @@
+# Build outputs and results are never needed in the image build context.
+# `.lake` is stripped inside the Dockerfile anyway; runresults is host-only
+# (bind-mounted at run time). Excluding them keeps the context transfer small.
+**/.lake
+runresults
