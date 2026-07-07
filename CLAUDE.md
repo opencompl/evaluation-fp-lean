@@ -36,14 +36,15 @@ The tests:
   and is equally weighted; unset `NPROBLEMS` runs the whole unsat set.
 - `run-instcombine-fp-problems.sh` / `docker-run-instcombine-fp-problems.sh` —
   all ~101 InstCombine fp-problems (QF_FP optimization-equivalence checks).
-- `run-instcombine-small.sh` / `docker-run-instcombine-small.sh` — all 50
-  tiny-width E5M2/E5M4 InstCombine-small identities, all four tools (including
-  `exhaustive-enumeration`). This is the instcombine leg of the camera-ready.
+- `run-instcombine-small.sh` / `docker-run-instcombine-small.sh` — all 75
+  InstCombine-small identities (E5M2/E5M4 tiny tiers + the `isoslow` slow-enum
+  tier), all four tools (including `exhaustive-enumeration`). This is the
+  instcombine leg of the camera-ready.
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
   suites back to back (`wintersteiger-uniform-family`, then `instcombine-small`),
   each with a cactus plot and suite-prefixed `cactus.tex`. `wintersteiger-uniform-family`
   is stratified, so `NPROBLEMS` is a **per-family cap** (default 150 -> 150×14 =
-  2100 problems), not a total; `instcombine-small` always runs all 50.
+  2100 problems), not a total; `instcombine-small` always runs all 75.
 - `run-fptg-oracle-tests.sh` / `docker-run-fptg-oracle-tests.sh` — the FPTG oracle
   **soundness gate**: run fp-lean over an fptg suite (default `fptg-float8`) and
   fail (exit 1) if any verdict disagrees with the MPFR/PyMPF oracle
@@ -111,10 +112,16 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   the 16-bit ones run bitwuzla vs the fplean pair only. (These are ground
   problems, so enumeration just evaluates -- it does not enumerate a domain.)
 - `instcombine-small` — the 25 constant-free (width-parametric) InstCombine
-  identities reparametrized to tiny widths E5M2 (`5 3`) and E5M4 (`5 5`), 50 total
-  (`datasets/instcombine-small.tar.zst`). These have 1-3 free FP variables, so
-  `exhaustive-enumeration` genuinely enumerates (feasible for ≤2 vars, times out
-  beyond). All four tools run.
+  identities reparametrized to several widths, 75 files total
+  (`datasets/instcombine-small.tar.zst`). The tiny tiers E5M2 (`5 3`) and E5M4
+  (`5 5`) enumerate near-instantly. The `isoslow` tier gives **each identity its
+  own width**, calibrated from that identity's measured enumeration throughput
+  (which varies ~40× — an fp.sub-of-fp.sub is far heavier per value than an
+  fp.neg), so every identity's `exhaustive-enumeration` is slow but still
+  terminating (~2–15s single-run, more under the parallel harness) — exposing
+  enumeration's exponential wall against the fast SMT tools. Regenerate with
+  `datasets/gen-instcombine-small-isoslow.py` (holds the frozen per-identity
+  width table). These have 1-3 free FP variables; all four tools run.
 - `smtlib-rand` — a sample across **all 8** top-level QF_FP families
   (`datasets/non-incremental/QF_FP`: wintersteiger + griggio, ramalho, schanda,
   20210211-Vector and the three UltimateAutomizer sets), not just wintersteiger.

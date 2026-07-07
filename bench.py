@@ -119,11 +119,17 @@ SUITES: dict[str, Suite] = {
     ),
     "instcombine-small": Suite(
         # The 25 constant-free (width-parametric) InstCombine identities
-        # reparametrized to tiny widths -- E5M2 (5 3, 256 values/var) and E5M4
-        # (5 5, 1024 values/var). These have 1-3 free FP variables, so
-        # exhaustive-enumeration genuinely enumerates (feasible for <=2 vars).
+        # reparametrized to several widths. e5m2 (5 3, 256 values/var) and e5m4
+        # (5 5, 1024 values/var) are the tiny tiers where exhaustive-enumeration
+        # is near-instant. isoslow is an "iso-difficulty" tier that picks the
+        # width PER variable-count (1-var (8 16), 2-var (8 3), 3-var (5 2)) so
+        # every identity enumerates in ~25-35s -- large enough to be genuinely
+        # slow, but still terminating under a 60s timeout, so the cactus shows
+        # enumeration's exponential wall against the fast SMT tools. Regenerate
+        # with datasets/gen-instcombine-small-isoslow.py. All have 1-3 free FP
+        # variables.
         dataset_dir=pathlib.Path("datasets/instcombine-small"),
-        families=["e5m2", "e5m4"],
+        families=["e5m2", "e5m4", "isoslow"],
         status=None,
         tools=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
     ),
