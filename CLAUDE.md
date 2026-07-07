@@ -46,10 +46,10 @@ The tests:
   of fp ops). This is the suite that measures the NaN-canonicalization axiom's
   performance value, and the only one that runs `fplean-nancanon`.
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
-  suites back to back (`wintersteiger-uniform-family`, then `instcombine-small`),
-  each with a cactus plot and suite-prefixed `cactus.tex`. `wintersteiger-uniform-family`
-  is stratified, so `NPROBLEMS` is a **per-family cap** (default 150 -> 150×14 =
-  2100 problems), not a total; `instcombine-small` always runs all 100.
+  suites back to back (`smtlib-rand`, then `instcombine-small`), each with a cactus
+  plot and suite-prefixed `cactus.tex`. `smtlib-rand` samples **uniformly across
+  all 8 QF_FP families** (stratified), so `NPROBLEMS` is a **per-family cap**
+  (default 300 -> 712 files), not a total; `instcombine-small` always runs all 100.
 - `run-fptg-oracle-tests.sh` / `docker-run-fptg-oracle-tests.sh` — the FPTG oracle
   **soundness gate**: run fp-lean over an fptg suite (default `fptg-float8`) and
   fail (exit 1) if any verdict disagrees with the MPFR/PyMPF oracle
@@ -154,7 +154,10 @@ Each benchmark's declared `(set-info :status ...)` is recorded per problem as
 against it: `NumErrors` (ran, no verdict), `NumDisagreementsWithExpectedStatus`
 and `PercentDisagreementsWithExpectedStatus` (gave a definite verdict that
 contradicts the oracle = unsound), printed in the summary and emitted as LaTeX
-macros. Every `cactus.tex` macro is prefixed with the suite name (via
+macros. The cactus y-axis is `NumSolved` = **sat OR unsat** verdicts that do not
+contradict the oracle (so correct-sat counts, e.g. the real sat instances in
+`smtlib-rand`; an unsound disagreement does not count as solved). On the
+unsat-only oracle suites this reduces to the unsat solves. Every `cactus.tex` macro is prefixed with the suite name (via
 `_texprefix`, which spells digits out so `fptg-float8`/`fptg-float16` stay
 distinct) so multiple runs' tex files can be `\input` together without clashing.
 

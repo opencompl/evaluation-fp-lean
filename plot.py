@@ -51,6 +51,7 @@ def _texprefix(name: str) -> str:
 
 
 class ToolStats(TypedDict):
+    nsolved: int         # sat+unsat solves that don't contradict the oracle (cactus count)
     nunsat: int
     nsat: int
     ntimeout: int
@@ -75,7 +76,7 @@ def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
         is_unsat = ok and "unsat" in so
         is_sat = ok and "sat" in so and "unsat" not in so
         m = TIME_MS_RE.search(so)
-        elapsed_ms = int(m.group(1)) if (is_unsat and m) else r["wall_elapsed_ms"]
+        elapsed_ms = int(m.group(1)) if ((is_unsat or is_sat) and m) else r["wall_elapsed_ms"]
         return {**r, "is_unsat": is_unsat, "is_sat": is_sat, "elapsed_ms": elapsed_ms}
     if tool == "bitwuzla":
         so = r["stdout"] or ""
@@ -94,7 +95,10 @@ def load(indir: pathlib.Path) -> pl.DataFrame:
         for line in f.read_text().splitlines():
             if line.strip():
                 raw = cast(bench.RawRecord, json.loads(line))
-                rows.append(parse_raw(raw))
+                # Skip records for tools no longer in the registry (e.g. an old
+                # run's since-removed tool) rather than crashing on them.
+                if raw["tool"] in bench.TOOLS:
+                    rows.append(parse_raw(raw))
     # infer_schema_length=None scans all rows: sorted filenames put every
     # bitwuzla record (cwd=null) before the fplean ones (cwd="…/leanwuzla"), so
     # a bounded inference window would wrongly type `cwd` as Null and fail.
@@ -126,7 +130,8 @@ def compute_tool_stats(df: pl.DataFrame, agg: pl.DataFrame, tool: bench.ToolName
         ~(pl.col("is_unsat") | pl.col("is_sat") | pl.col("is_timeout") | pl.col("is_memout"))
     ).height
     return {
-        "nunsat": len(times),
+        "nsolved": len(times),
+        "nunsat": tool_df.filter(pl.col("is_unsat")).height,
         "nsat": tool_df.filter(pl.col("is_sat")).height,
         "ntimeout": tool_df.filter(pl.col("is_timeout")).height,
         "nmemout": tool_df.filter(pl.col("is_memout")).height,
@@ -168,13 +173,32 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     outdir.mkdir(parents=True, exist_ok=True)
     df = load(indir)
 
-    if df.filter(pl.col("is_sat")).height > 0:
-        print("!!! WARNING: 'sat' results detected (unsound if benchmarks are correctness obligations) !!!")
-        for row in df.filter(pl.col("is_sat")).iter_rows(named=True):
-            print(f"  SAT: {row['tool']} on {row['path']} (run {row['run']})")
+    # Flag genuinely UNSOUND results -- a definite verdict that contradicts a
+    # known oracle status (sat where the oracle says unsat, or vice versa). A plain
+    # `sat` on a sat/unknown problem is fine (e.g. the cross-family smtlib-rand
+    # suite has real sat instances), so we no longer warn on those.
+    unsound = df.filter(
+        ((pl.col("is_sat") & (pl.col("expected_status") == "unsat"))
+         | (pl.col("is_unsat") & (pl.col("expected_status") == "sat"))))
+    if unsound.height > 0:
+        print("!!! WARNING: unsound verdicts (contradict the oracle :status) !!!")
+        for row in unsound.iter_rows(named=True):
+            v = "sat" if row["is_sat"] else "unsat"
+            print(f"  {v} but oracle={row['expected_status']}: {row['tool']} on {row['path']} (run {row['run']})")
 
     expected_runs = df["run"].n_unique()
-    solved = df.filter(pl.col("is_unsat"))
+    # A "solve" is a definite verdict (sat or unsat) that does not contradict a
+    # known oracle status -- so correct-sat counts (e.g. the sat problems in the
+    # cross-family smtlib-rand suite), and an unsound answer that disagrees with
+    # the oracle does not. On the unsat-only oracle suites this reduces to the
+    # unsat solves. Verdicts on unknown-status problems count (unverifiable but
+    # solved).
+    _verdict = (pl.when(pl.col("is_unsat")).then(pl.lit("unsat"))
+                  .when(pl.col("is_sat")).then(pl.lit("sat")).otherwise(pl.lit(None)))
+    _known = pl.col("expected_status").is_in(["sat", "unsat"])
+    solved = df.with_columns(_verdict.alias("_verdict")).filter(
+        (pl.col("is_unsat") | pl.col("is_sat"))
+        & (~_known | (pl.col("_verdict") == pl.col("expected_status"))))
     agg = (
         solved.with_columns(pl.col("elapsed_ms").cast(pl.Float64).log().alias("_log"))
         .group_by(["tool", "path"])
@@ -196,7 +220,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     for tool in tools:
         s = stats[tool]
-        print(f"  {tool:22s} unsat={s['nunsat']:<5d} sat={s['nsat']:<5d} "
+        print(f"  {tool:22s} solved={s['nsolved']:<5d} (unsat={s['nunsat']:<5d} sat={s['nsat']:<5d}) "
               f"timeout={s['ntimeout']:<4d} memout={s['nmemout']:<3d} "
               f"error={s['nerror']:<5d} "
               f"disagree={s['ndisagree']:<4d}/{s['nchecked']:<5d} "
@@ -236,7 +260,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
                           bench.tool2color[tool]))
     ax.set_xscale("log")
     ax.set_xlabel("Cumulative time elapsed (ms)")
-    ax.set_ylabel("# problems solved (unsat)")
+    ax.set_ylabel("# problems solved")
     ax.grid(True, which="both", linestyle="--", linewidth=0.5, alpha=0.5)
     ax.legend()
     ax.margins(x=0.18)  # right-side headroom for the endpoint labels
@@ -258,6 +282,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
         s = stats[tool]
         cap = _texname(tool)
         per_tool: dict[str, object] = {
+            f"{pfx}NumSolved{cap}":    s["nsolved"],
             f"{pfx}NumUnsat{cap}":     s["nunsat"],
             f"{pfx}NumSat{cap}":       s["nsat"],
             f"{pfx}NumTimeout{cap}":   s["ntimeout"],
