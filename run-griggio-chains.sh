@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Run bitwuzla vs fp-lean (canon on) vs fp-lean-nonancanon (canon off) on the
-# `griggio-chains` suite -- real-world QF_FP problems that are CHAINS of floating-
-# point ops (nested fp.add/sub/mul/div), unsat + float32, fplean-supported. These
-# exercise the pack/unpack-cancellation (NaN-canonicalization) pass that default
-# fplean runs and fplean-nonancanon disables, so this is where the canon on-vs-off
-# performance delta shows up (and the one suite that plots the nonancanon curve).
+# Run bitwuzla vs fplean (canon off, axiom-free) vs fplean-nancanon (canon on) on
+# the `griggio-chains` suite -- real-world QF_FP problems that are CHAINS of
+# floating-point ops (nested fp.add/sub/mul/div), unsat + float32, fplean-supported.
+# These exercise the pack/unpack-cancellation (NaN-canonicalization) pass that the
+# special fplean-nancanon enables and the normal fplean disables, so this is the
+# suite that measures the canonicalization axiom's performance value.
 #
 # Runs directly on the current machine; to run in the container use
 # ./docker-run-griggio-chains.sh. Locally, pass host solver paths:

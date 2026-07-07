@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Run run-griggio-chains.sh (bitwuzla vs fp-lean vs fp-lean-nonancanon on the
-# griggio FP-chain problems, to show the NaN-canonicalization delta) inside the
+# Run run-griggio-chains.sh (bitwuzla vs fplean vs fplean-nancanon on the
+# griggio FP-chain problems, to measure the NaN-canonicalization delta) inside the
 # container via podman.
 #
 # Env knobs are forwarded into the container, e.g.

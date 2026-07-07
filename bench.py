@@ -20,7 +20,7 @@ import lib
 from runwithlimits import run_with_limits
 
 
-ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"]
+ToolName = Literal["bitwuzla", "fplean", "fplean-nokernel", "fplean-nancanon", "exhaustive-enumeration"]
 
 SEED: int = 42  # the SMT-LIB / SMT-COMP standard seed
 # Paths default to the container layout but can be overridden via the
@@ -36,7 +36,7 @@ RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 # The registry of all known tools, in display order. Which subset actually runs
 # is per-suite (see Suite.tools_to_run); plotting filters this to the tools present in
 # the data.
-TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"]
+TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nancanon", "exhaustive-enumeration"]
 
 @dataclass(frozen=True)
 class Suite:
@@ -49,11 +49,7 @@ class Suite:
     tools_to_plot: list[ToolName]  # which of the run tools to draw on the cactus
                                 # curve -- a subset of tools_to_run (the rest are
                                 # still run and reported in the summary/macros,
-                                # just not plotted). This is how fplean-nonancanon
-                                # is kept off the curve for the single-op suites
-                                # where it is visually identical to fplean, while
-                                # griggio-chains plots it to show the NaN-
-                                # canonicalization delta. Every suite sets it.
+                                # just not plotted). Every suite sets it.
     name_regex: str = ".*"      # keep only files whose name matches this regex
     stratified: bool = False    # if True, --nproblems is a *per-family* cap (see
                                 # sampled_problems); else it is a total sample size
@@ -78,11 +74,10 @@ class Suite:
 #                                   The default.
 #   instcombine-fp-problems         QF_FP equivalence checks extracted from LLVM
 #                                   InstCombine tests (llvm-fp-bv-smt-extractor).
-_LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon"]
-# The same set minus fplean-nonancanon, for tools_to_plot: nonancanon is run (for
-# the summary/macros) but kept off the cactus curve on these single-op suites,
-# where it is visually identical to fplean (the pack/unpack rewrite never fires).
-_LEAN_TOOLS_PLOT: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
+# The normal fp-lean bundle: all axiom-free (NaN-canonicalization off). The
+# special axiom-relying fplean-nancanon is added only to the suite that measures
+# its performance value (griggio-chains).
+_LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
 
 # The 12 operation subdirectories in each fptg-testsuite format. fplean does not
 # support all of them (it errors on e.g. fp.max/min/sqrt/rem/roundToIntegral),
@@ -100,7 +95,7 @@ SUITES: dict[str, Suite] = {
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
         keep_problems_with_status=None,
         tools_to_run=_LEAN_TOOLS,
-        tools_to_plot=_LEAN_TOOLS_PLOT,
+        tools_to_plot=_LEAN_TOOLS,
     ),
     "wintersteiger-uniform-family": Suite(
         # Every wintersteiger operator, unsat only, sampled UNIFORMLY per
@@ -115,10 +110,6 @@ SUITES: dict[str, Suite] = {
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
         keep_problems_with_status="unsat",
-        # bitwuzla + the two fplean variants of interest; fplean-nonancanon is
-        # omitted -- it is visually identical to fplean on these single-op QF_FP
-        # problems (already hidden from the cactus curve) so running it just
-        # burns a third of the fplean budget for a redundant point.
         tools_to_run=["bitwuzla", "fplean", "fplean-nokernel"],
         tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel"],
         stratified=True,
@@ -130,7 +121,7 @@ SUITES: dict[str, Suite] = {
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div"],
         keep_problems_with_status="unsat",
         tools_to_run=_LEAN_TOOLS,
-        tools_to_plot=_LEAN_TOOLS_PLOT,
+        tools_to_plot=_LEAN_TOOLS,
     ),
     "instcombine-fp-problems": Suite(
         # ~101 QF_FP optimization-equivalence checks extracted from LLVM
@@ -139,7 +130,7 @@ SUITES: dict[str, Suite] = {
         families=["fp-problems"],
         keep_problems_with_status=None,
         tools_to_run=_LEAN_TOOLS,
-        tools_to_plot=_LEAN_TOOLS_PLOT,
+        tools_to_plot=_LEAN_TOOLS,
     ),
     "instcombine-small": Suite(
         # The 25 constant-free (width-parametric) InstCombine identities
@@ -155,30 +146,30 @@ SUITES: dict[str, Suite] = {
         dataset_dir=pathlib.Path("datasets/instcombine-small"),
         families=["e5m2", "e5m4", "isoslow"],
         keep_problems_with_status=None,
-        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
         tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
     ),
     "griggio-chains": Suite(
         # Real-world QF_FP problems that are *chains* of floating-point ops (nested
         # fp.add/sub/mul/div/fma), from Griggio's fmcad12 set. These exercise the
-        # pack/unpack-cancellation (NaN-canonicalization) pass that fplean runs by
-        # default and fplean-nonancanon disables (--disable-fp-normalize): the pass
-        # rewrites `euf.pack.unpack = euf`, which only fires when one op's pack
-        # meets its parent's unpack -- i.e. exactly on chains, never on the single-
-        # op wintersteiger/instcombine suites. So this is the suite where the canon
-        # on-vs-off delta shows up, and the only one that plots the nonancanon
-        # curve. Restricted to unsat + float32 (8 24) +
-        # fplean-supported ops via name_regex: the test_v* (random nested formulas,
-        # 27-175 fp ops), sine.N and square.N (Taylor-series chains) files -- ~34
-        # total, a natural chain-depth sweep. The add_*/mul_* unsat files use
-        # `to_fp` (unsupported) and qurt/pow are float64 (costly); both excluded.
+        # pack/unpack-cancellation (NaN-canonicalization) pass -- which the normal
+        # fplean disables (axiom-free) and the special fplean-nancanon enables
+        # (--fp-normalize on, resting on the Canonical_all axiom). The pass rewrites
+        # `euf.pack.unpack = euf`, which only fires when one op's pack meets its
+        # parent's unpack -- i.e. exactly on chains. So this is the suite that
+        # measures the axiom's performance value: it runs and plots both fplean
+        # (canon off) and fplean-nancanon (canon on). Restricted to unsat + float32
+        # (8 24) + fplean-supported ops via name_regex: the test_v* (random nested
+        # formulas, 27-175 fp ops), sine.N and square.N (Taylor-series chains)
+        # files -- ~34 total, a natural chain-depth sweep. The add_*/mul_* unsat
+        # files use `to_fp` (unsupported) and qurt/pow are float64 (costly); both
+        # excluded.
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/griggio"),
         families=["fmcad12"],
         keep_problems_with_status="unsat",
         name_regex=r"^(test_v|sine\.\d|square\.\d)",
-        # nonancanon IS plotted here -- this is the suite built to show its delta.
-        tools_to_run=["bitwuzla", "fplean", "fplean-nonancanon"],
-        tools_to_plot=["bitwuzla", "fplean", "fplean-nonancanon"],
+        tools_to_run=["bitwuzla", "fplean", "fplean-nancanon"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nancanon"],
     ),
     "smtlib-rand": Suite(
         # A cross-family QF_FP sample: every top-level SMT-LIB QF_FP family, not
@@ -199,7 +190,7 @@ SUITES: dict[str, Suite] = {
                   "griggio", "ramalho", "schanda", "wintersteiger"],
         keep_problems_with_status=None,
         tools_to_run=_LEAN_TOOLS,
-        tools_to_plot=_LEAN_TOOLS_PLOT,
+        tools_to_plot=_LEAN_TOOLS,
         stratified=True,
     ),
     # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
@@ -250,10 +241,10 @@ DEFAULT_SUITE: str = "wintersteiger-supported-family"
 
 tool2color: dict[ToolName, str] = {
     "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0",
-    "fplean-nonancanon": "#C62828", "exhaustive-enumeration": "#8E24AA"}
+    "fplean-nancanon": "#C62828", "exhaustive-enumeration": "#8E24AA"}
 tool2label: dict[ToolName, str] = {
     "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)",
-    "fplean-nonancanon": "FP-Lean (no NaN canon)", "exhaustive-enumeration": "Exhaustive enum"}
+    "fplean-nancanon": "FP-Lean + NaN-canon", "exhaustive-enumeration": "Exhaustive enum"}
 
 
 class Problem(TypedDict):
@@ -362,7 +353,7 @@ def write_machine_data_tex(folder: pathlib.Path) -> None:
 
 
 def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[str]:
-    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nancanon", "exhaustive-enumeration"):
         # leanwuzla's --timeout is the internal SAT-solver budget (default 10s);
         # match the harness limit so it isn't cut off before bitwuzla is.
         # --maxHeartbeats is raised far above the default (200000) so that simp
@@ -376,14 +367,17 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
                "--timeout", str(timeout_sec),
                "--maxHeartbeats", "9999999",
                "--maxRecDepth", "100000"]
+        # NaN-canonicalization (the staged pack/unpack-cancellation simp) rests on
+        # the unproven `Canonical_all` axiom, so we DISABLE it for the normal
+        # profiles: their reported results must not depend on a new axiom. Only the
+        # special `fplean-nancanon` profile leaves it on, so the axiom's
+        # performance value can be measured against the axiom-free default.
+        if tool != "fplean-nancanon":
+            cmd.append("--disable-fp-normalize")
         if tool == "fplean-nokernel":
             # skip the Lean kernel re-check of the bvDecide reflection proof;
             # only the LRAT certificate is verified (Leanwuzla decideSmtNoKernel).
             cmd.append("--disableKernel")
-        if tool == "fplean-nonancanon":
-            # disable the staged FP pack/unpack-cancellation pipeline whose NaN
-            # canonicalization rests on the unproven `Canonical_all` axiom.
-            cmd.append("--disable-fp-normalize")
         if tool == "exhaustive-enumeration":
             # decide the goal by native-evaluating a Decidable instance over all
             # FP values instead of bv_decide (only feasible for tiny bit-widths).
@@ -396,7 +390,7 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
 
 
 def tool_cwd(tool: ToolName) -> Optional[str]:
-    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nancanon", "exhaustive-enumeration"):
         # run from the Leanwuzla project root so `lake env` finds the lakefile/oleans.
         return str(LEANWUZLA_DIR.absolute())
     return None

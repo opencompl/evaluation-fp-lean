@@ -25,8 +25,7 @@ CACTUS_HEIGHT_IN: float = 2.3
 
 # Which tools appear on the cactus *curve* is per-suite: each Suite lists a
 # tools_to_plot subset of tools_to_run (bench.py). Tools that are run but not
-# plotted (e.g. fplean-nonancanon on the single-op suites, where it overplots
-# fplean) are still reported in the summary and the LaTeX macros.
+# plotted are still reported in the summary and the LaTeX macros.
 
 
 def _texname(tool: str) -> str:
@@ -67,7 +66,7 @@ class ToolStats(TypedDict):
 def parse_raw(r: bench.RawRecord) -> bench.ParsedRecord:
     ok = not (r["is_timeout"] or r["is_memout"] or r["is_exception"])
     tool = r["tool"]
-    if tool in ("fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"):
+    if tool in ("fplean", "fplean-nokernel", "fplean-nancanon", "exhaustive-enumeration"):
         # leanwuzla reports its verdict as `sat`/`unsat` on stdout and exits 0
         # (it does not use the 10/20 SMT-COMP exit codes). Failures such as the
         # "potentially spurious counterexample" abstraction error print neither
@@ -207,8 +206,8 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
     # Resolve which suite ran (the manifest is authoritative; fall back to the
     # --suite option) so we can (a) restrict the cactus curve to the suite's
     # tools_to_plot and (b) prefix the LaTeX macros. A suite may run a tool only
-    # for the summary/macros and keep it off the curve (e.g. fplean-nonancanon on
-    # the single-op suites); tools_to_plot is that plotted subset.
+    # for the summary/macros and keep it off the curve; tools_to_plot is that
+    # plotted subset.
     suite_name = opts.suite
     manifest = indir / "manifest.json"
     if manifest.exists():

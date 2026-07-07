@@ -40,11 +40,11 @@ The tests:
   InstCombine-small identities (E5M2/E5M4 tiny tiers + the `isoslow` slow-enum
   tier), all four tools (including `exhaustive-enumeration`). This is the
   instcombine leg of the camera-ready.
-- `run-griggio-chains.sh` / `docker-run-griggio-chains.sh` — bitwuzla vs fp-lean
-  vs fp-lean-**nonancanon** on the `griggio-chains` suite (real-world unsat
-  float32 QF_FP problems that are *chains* of fp ops). This is the suite that
-  demonstrates the NaN-canonicalization performance delta and the only one that
-  plots the nonancanon curve.
+- `run-griggio-chains.sh` / `docker-run-griggio-chains.sh` — bitwuzla vs `fplean`
+  (canon off, axiom-free) vs `fplean-nancanon` (canon on, special) on the
+  `griggio-chains` suite (real-world unsat float32 QF_FP problems that are *chains*
+  of fp ops). This is the suite that measures the NaN-canonicalization axiom's
+  performance value, and the only one that runs `fplean-nancanon`.
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
   suites back to back (`wintersteiger-uniform-family`, then `instcombine-small`),
   each with a cactus plot and suite-prefixed `cactus.tex`. `wintersteiger-uniform-family`
@@ -131,10 +131,10 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   that are **chains** of fp ops (nested `fp.add/sub/mul/div`), restricted to unsat
   + float32 + fplean-supported ops (`test_v*`, `sine.N`, `square.N`; the `to_fp`
   and float64 files are excluded by `name_regex`). Because the pack/unpack-
-  cancellation pass only fires on chained ops, this is the suite where default
-  `fplean` (canon on) beats `fplean-nonancanon` (canon off) — so it runs
-  bitwuzla + fplean + fplean-nonancanon and is the one suite whose
-  `tools_to_plot` **includes** nonancanon (its curve is drawn to show the delta).
+  cancellation pass only fires on chained ops, this is the suite that measures the
+  NaN-canonicalization axiom's performance value — it runs and plots both `fplean`
+  (canon off, axiom-free) and `fplean-nancanon` (canon on), and is the only suite
+  that uses `fplean-nancanon`.
   (`datasets/non-incremental/QF_FP`: wintersteiger + griggio, ramalho, schanda,
   20210211-Vector and the three UltimateAutomizer sets), not just wintersteiger.
   QF_FP is ~99% wintersteiger (39,994 of 40,406 files), so this suite is the only
@@ -182,3 +182,20 @@ whenever `Dockerfile`, the dataset, or the Leanwuzla pin changes.
   lowercase submodule dir; the container pins it via `ENV LEANWUZLA_DIR`). (It
   replaced the old Blase `blasewuzla` backend.)
 - `bitwuzla` is the upstream solver baseline (`BITWUZLA_PATH`).
+
+### fp-lean solver profiles and the NaN-canonicalization axiom
+
+NaN-canonicalization (leanwuzla's staged pack/unpack-cancellation simp,
+`--fp-normalize`) rests on the **unproven `Canonical_all` axiom**, so the normal
+profiles run it **disabled** (`--disable-fp-normalize`) -- headline results must
+not depend on a new axiom. The flag mapping (`bench.tool_command`) is:
+
+- `fplean` -- kernel on, **canon off** (axiom-free). The default reported solver.
+- `fplean-nokernel` -- kernel off, canon off. Skips the kernel re-check of the
+  bvDecide reflection proof (known fp.fma soundness bug; runs informationally).
+- `fplean-nancanon` -- kernel on, **canon on** (the one profile that keeps
+  NaN-canonicalization, hence relies on `Canonical_all`). It exists only to
+  measure the axiom's performance value against the axiom-free `fplean`, and is
+  used only by the `griggio-chains` suite.
+- `exhaustive-enumeration` -- native-evaluates a `Decidable` instance (no
+  bv_decide, so axiom-free by construction).
