@@ -40,6 +40,11 @@ The tests:
   InstCombine-small identities (E5M2/E5M4 tiny tiers + the `isoslow` slow-enum
   tier), all four tools (including `exhaustive-enumeration`). This is the
   instcombine leg of the camera-ready.
+- `run-griggio-chains.sh` / `docker-run-griggio-chains.sh` — bitwuzla vs fp-lean
+  vs fp-lean-**nonancanon** on the `griggio-chains` suite (real-world unsat
+  float32 QF_FP problems that are *chains* of fp ops). This is the suite that
+  demonstrates the NaN-canonicalization performance delta and the only one that
+  plots the nonancanon curve.
 - `run-camera-ready.sh` / `docker-run-camera-ready.sh` — the paper's two headline
   suites back to back (`wintersteiger-uniform-family`, then `instcombine-small`),
   each with a cactus plot and suite-prefixed `cactus.tex`. `wintersteiger-uniform-family`
@@ -122,7 +127,14 @@ division). The suites are the `bench.SUITES` registry (each a frozen
   enumeration's exponential wall against the fast SMT tools. Regenerate with
   `datasets/gen-instcombine-small-isoslow.py` (holds the frozen per-identity
   width table). These have 1-3 free FP variables; all four tools run.
-- `smtlib-rand` — a sample across **all 8** top-level QF_FP families
+- `griggio-chains` — ~34 real-world QF_FP problems from Griggio's `fmcad12` set
+  that are **chains** of fp ops (nested `fp.add/sub/mul/div`), restricted to unsat
+  + float32 + fplean-supported ops (`test_v*`, `sine.N`, `square.N`; the `to_fp`
+  and float64 files are excluded by `name_regex`). Because the pack/unpack-
+  cancellation pass only fires on chained ops, this is the suite where default
+  `fplean` (canon on) beats `fplean-nonancanon` (canon off) — so it runs
+  bitwuzla + fplean + fplean-nonancanon and is the one suite whose
+  `tools_to_plot` **includes** nonancanon (its curve is drawn to show the delta).
   (`datasets/non-incremental/QF_FP`: wintersteiger + griggio, ramalho, schanda,
   20210211-Vector and the three UltimateAutomizer sets), not just wintersteiger.
   QF_FP is ~99% wintersteiger (39,994 of 40,406 files), so this suite is the only

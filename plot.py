@@ -23,12 +23,10 @@ TIME_MS_RE: re.Pattern[str] = re.compile(r"Time elapsed:\s*(\d+)\s*ms")
 CACTUS_WIDTH_IN: float = 7.0
 CACTUS_HEIGHT_IN: float = 2.3
 
-# Tools to omit from the cactus *curve* (still run, still reported in the summary
-# and the LaTeX macros). fplean-nonancanon is visually identical to fplean on the
-# QF_FP suites -- the NaN-canon pack/unpack rewrite it disables almost never fires
-# on these single-op problems -- so its curve just overplots fplean and clutters
-# the legend. Hide it from the plot.
-CACTUS_HIDDEN_TOOLS: set[str] = {"fplean-nonancanon"}
+# Which tools appear on the cactus *curve* is per-suite: each Suite lists a
+# tools_to_plot subset of tools_to_run (bench.py). Tools that are run but not
+# plotted (e.g. fplean-nonancanon on the single-op suites, where it overplots
+# fplean) are still reported in the summary and the LaTeX macros.
 
 
 def _texname(tool: str) -> str:
@@ -206,11 +204,24 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
               f"({s['pct_disagree']:.2f}% unsound) "
               f"geomean={lib.time_str_from_ms(s['geomean_ms'])}")
 
+    # Resolve which suite ran (the manifest is authoritative; fall back to the
+    # --suite option) so we can (a) restrict the cactus curve to the suite's
+    # tools_to_plot and (b) prefix the LaTeX macros. A suite may run a tool only
+    # for the summary/macros and keep it off the curve (e.g. fplean-nonancanon on
+    # the single-op suites); tools_to_plot is that plotted subset.
+    suite_name = opts.suite
+    manifest = indir / "manifest.json"
+    if manifest.exists():
+        suite_name = json.loads(manifest.read_text()).get("suite", suite_name)
+    suite = bench.SUITES.get(suite_name)
+    plot_tools = set(suite.tools_to_plot) if suite else present
+    pfx = _texprefix(suite_name)
+
     lib.set_global_matplotlib_defaults()
     fig, ax = plt.subplots(figsize=(CACTUS_WIDTH_IN, CACTUS_HEIGHT_IN))
     endpoints: list[tuple[float, int, str, str]] = []  # (x, #solved, label, color)
     for tool in tools:
-        if tool in CACTUS_HIDDEN_TOOLS:
+        if tool not in plot_tools:
             continue
         times = stats[tool]["times"]
         if not times:
@@ -238,15 +249,9 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
 
     nproblems_total = df["path"].n_unique()
 
-    # Prefix every macro with the suite name so several runs' cactus.tex files
-    # can be \input together without redefining each other's commands. Prefer the
-    # manifest's suite (what actually ran); fall back to the --suite option.
-    suite_name = opts.suite
-    manifest = indir / "manifest.json"
-    if manifest.exists():
-        suite_name = json.loads(manifest.read_text()).get("suite", suite_name)
-    pfx = _texprefix(suite_name)
-
+    # Every macro is prefixed with the suite name (pfx, computed above) so several
+    # runs' cactus.tex files can be \input together without redefining each
+    # other's commands.
     lines = [f"%% Auto-generated LaTeX commands for suite '{suite_name}'", "", "%% totals"]
     lines.append(bench.format_newcommand(f"{pfx}NumProblemsTotal", nproblems_total))
 

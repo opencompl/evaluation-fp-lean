@@ -21,7 +21,7 @@ def cactus_configs(opts: argparse.Namespace) -> list[bench.Config]:
     suite = bench.SUITES[opts.suite]
     probs = bench.sampled_problems(opts.nproblems, suite)
     out: list[bench.Config] = []
-    for tool in suite.tools:
+    for tool in suite.tools_to_run:
         for run in range(opts.runs):
             for p in probs:
                 out.append({
@@ -50,7 +50,7 @@ def debug_configs(opts: argparse.Namespace) -> list[bench.Config]:
         benchmark = path.name
     expected_status = bench._status_of(path)
     out: list[bench.Config] = []
-    for tool in bench.SUITES[opts.suite].tools:
+    for tool in bench.SUITES[opts.suite].tools_to_run:
         for run in range(opts.runs):
             out.append({
                 "tool": tool,
@@ -103,7 +103,7 @@ def do_run(opts: argparse.Namespace, config_name: str, configs_fn: ConfigFn) -> 
     manifest: bench.Manifest = {
         "config_name": config_name,
         "suite": opts.suite,
-        "tools": bench.SUITES[opts.suite].tools,
+        "tools": bench.SUITES[opts.suite].tools_to_run,
         "nproblems": opts.nproblems,
         "runs": opts.runs,
         "timeout_sec": opts.timeout_sec,

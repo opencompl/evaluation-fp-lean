@@ -34,7 +34,7 @@ FPLEAN_PATH: pathlib.Path = LEANWUZLA_DIR / ".lake/build/bin/leanwuzla"
 RUNRESULTS_DIR: pathlib.Path = pathlib.Path("runresults")
 
 # The registry of all known tools, in display order. Which subset actually runs
-# is per-suite (see Suite.tools); plotting filters this to the tools present in
+# is per-suite (see Suite.tools_to_run); plotting filters this to the tools present in
 # the data.
 TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"]
 
@@ -42,11 +42,27 @@ TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonanc
 class Suite:
     dataset_dir: pathlib.Path   # benchmark tree to walk
     families: list[str]         # top-level subdirs of dataset_dir to include
-    status: Optional[str]       # keep only this (set-info :status ...), or None
-    tools: list[ToolName]       # which solvers to run for this suite
+    keep_problems_with_status: Optional[str]  # keep only files whose
+                                # (set-info :status ...) equals this, or None to
+                                # keep every problem regardless of status
+    tools_to_run: list[ToolName]   # which solvers to run for this suite
+    tools_to_plot: list[ToolName]  # which of the run tools to draw on the cactus
+                                # curve -- a subset of tools_to_run (the rest are
+                                # still run and reported in the summary/macros,
+                                # just not plotted). This is how fplean-nonancanon
+                                # is kept off the curve for the single-op suites
+                                # where it is visually identical to fplean, while
+                                # griggio-chains plots it to show the NaN-
+                                # canonicalization delta. Every suite sets it.
     name_regex: str = ".*"      # keep only files whose name matches this regex
     stratified: bool = False    # if True, --nproblems is a *per-family* cap (see
                                 # sampled_problems); else it is a total sample size
+
+    def __post_init__(self) -> None:
+        extra = set(self.tools_to_plot) - set(self.tools_to_run)
+        if extra:
+            raise ValueError(
+                f"tools_to_plot {sorted(extra)} not a subset of tools_to_run")
 
 
 # The benchmark suites, selected with `cli.py <cmd> --suite <name>`. A suite
@@ -63,6 +79,10 @@ class Suite:
 #   instcombine-fp-problems         QF_FP equivalence checks extracted from LLVM
 #                                   InstCombine tests (llvm-fp-bv-smt-extractor).
 _LEAN_TOOLS: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon"]
+# The same set minus fplean-nonancanon, for tools_to_plot: nonancanon is run (for
+# the summary/macros) but kept off the cactus curve on these single-op suites,
+# where it is visually identical to fplean (the pack/unpack rewrite never fires).
+_LEAN_TOOLS_PLOT: list[ToolName] = ["bitwuzla", "fplean", "fplean-nokernel"]
 
 # The 12 operation subdirectories in each fptg-testsuite format. fplean does not
 # support all of them (it errors on e.g. fp.max/min/sqrt/rem/roundToIntegral),
@@ -78,8 +98,9 @@ SUITES: dict[str, Suite] = {
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
-        status=None,
-        tools=_LEAN_TOOLS,
+        keep_problems_with_status=None,
+        tools_to_run=_LEAN_TOOLS,
+        tools_to_plot=_LEAN_TOOLS_PLOT,
     ),
     "wintersteiger-uniform-family": Suite(
         # Every wintersteiger operator, unsat only, sampled UNIFORMLY per
@@ -93,12 +114,13 @@ SUITES: dict[str, Suite] = {
         dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/wintersteiger"),
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
-        status="unsat",
+        keep_problems_with_status="unsat",
         # bitwuzla + the two fplean variants of interest; fplean-nonancanon is
         # omitted -- it is visually identical to fplean on these single-op QF_FP
         # problems (already hidden from the cactus curve) so running it just
         # burns a third of the fplean budget for a redundant point.
-        tools=["bitwuzla", "fplean", "fplean-nokernel"],
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel"],
         stratified=True,
     ),
     "wintersteiger-supported-family": Suite(
@@ -106,16 +128,18 @@ SUITES: dict[str, Suite] = {
         # ops fplean solves; it does NOT support fp.min/fp.max/fp.sqrt/
         # fp.roundToIntegral, times out on fp.rem, and does not finish fp.fma.
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div"],
-        status="unsat",
-        tools=_LEAN_TOOLS,
+        keep_problems_with_status="unsat",
+        tools_to_run=_LEAN_TOOLS,
+        tools_to_plot=_LEAN_TOOLS_PLOT,
     ),
     "instcombine-fp-problems": Suite(
         # ~101 QF_FP optimization-equivalence checks extracted from LLVM
         # InstCombine tests. No :status is known, so all of them are run.
         dataset_dir=pathlib.Path("datasets/instcombine"),
         families=["fp-problems"],
-        status=None,
-        tools=_LEAN_TOOLS,
+        keep_problems_with_status=None,
+        tools_to_run=_LEAN_TOOLS,
+        tools_to_plot=_LEAN_TOOLS_PLOT,
     ),
     "instcombine-small": Suite(
         # The 25 constant-free (width-parametric) InstCombine identities
@@ -130,8 +154,31 @@ SUITES: dict[str, Suite] = {
         # variables.
         dataset_dir=pathlib.Path("datasets/instcombine-small"),
         families=["e5m2", "e5m4", "isoslow"],
-        status=None,
-        tools=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
+        keep_problems_with_status=None,
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel", "fplean-nonancanon", "exhaustive-enumeration"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+    ),
+    "griggio-chains": Suite(
+        # Real-world QF_FP problems that are *chains* of floating-point ops (nested
+        # fp.add/sub/mul/div/fma), from Griggio's fmcad12 set. These exercise the
+        # pack/unpack-cancellation (NaN-canonicalization) pass that fplean runs by
+        # default and fplean-nonancanon disables (--disable-fp-normalize): the pass
+        # rewrites `euf.pack.unpack = euf`, which only fires when one op's pack
+        # meets its parent's unpack -- i.e. exactly on chains, never on the single-
+        # op wintersteiger/instcombine suites. So this is the suite where the canon
+        # on-vs-off delta shows up, and the only one that plots the nonancanon
+        # curve. Restricted to unsat + float32 (8 24) +
+        # fplean-supported ops via name_regex: the test_v* (random nested formulas,
+        # 27-175 fp ops), sine.N and square.N (Taylor-series chains) files -- ~34
+        # total, a natural chain-depth sweep. The add_*/mul_* unsat files use
+        # `to_fp` (unsupported) and qurt/pow are float64 (costly); both excluded.
+        dataset_dir=pathlib.Path("datasets/non-incremental/QF_FP/griggio"),
+        families=["fmcad12"],
+        keep_problems_with_status="unsat",
+        name_regex=r"^(test_v|sine\.\d|square\.\d)",
+        # nonancanon IS plotted here -- this is the suite built to show its delta.
+        tools_to_run=["bitwuzla", "fplean", "fplean-nonancanon"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nonancanon"],
     ),
     "smtlib-rand": Suite(
         # A cross-family QF_FP sample: every top-level SMT-LIB QF_FP family, not
@@ -150,8 +197,9 @@ SUITES: dict[str, Suite] = {
                   "20190429-UltimateAutomizerSvcomp2019",
                   "20210211-Vector", "20230321-UltimateAutomizerSvcomp2023",
                   "griggio", "ramalho", "schanda", "wintersteiger"],
-        status=None,
-        tools=_LEAN_TOOLS,
+        keep_problems_with_status=None,
+        tools_to_run=_LEAN_TOOLS,
+        tools_to_plot=_LEAN_TOOLS_PLOT,
         stratified=True,
     ),
     # Template "small" suite -- the only place `exhaustive-enumeration` runs, so
@@ -164,9 +212,10 @@ SUITES: dict[str, Suite] = {
     # "preiner-small": Suite(
     #     dataset_dir=pathlib.Path("datasets/non-incremental/FP"),
     #     families=["2019-Preiner"],
-    #     status=None,
+    #     keep_problems_with_status=None,
     #     name_regex=r"^3_5_",
-    #     tools=["bitwuzla", "exhaustive-enumeration"],
+    #     tools_to_run=["bitwuzla", "exhaustive-enumeration"],
+    #     tools_to_plot=["bitwuzla", "exhaustive-enumeration"],
     # ),
 
     # fptg-testsuite (Schanda's fp_test_generator): ground QF_FP tests whose
@@ -178,20 +227,23 @@ SUITES: dict[str, Suite] = {
     "fptg-float8": Suite(
         dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/float8"),
         families=_FPTG_OPS,
-        status=None,
-        tools=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+        keep_problems_with_status=None,
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
     ),
     "fptg-float16": Suite(
         dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/float16"),
         families=_FPTG_OPS,
-        status=None,
-        tools=["bitwuzla", "fplean", "fplean-nokernel"],
+        keep_problems_with_status=None,
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel"],
     ),
     "fptg-bfloat16": Suite(
         dataset_dir=pathlib.Path("datasets/fptg-testsuite/QF_FP/tests_validated/bfloat16"),
         families=_FPTG_OPS,
-        status=None,
-        tools=["bitwuzla", "fplean", "fplean-nokernel"],
+        keep_problems_with_status=None,
+        tools_to_run=["bitwuzla", "fplean", "fplean-nokernel"],
+        tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel"],
     ),
 }
 DEFAULT_SUITE: str = "wintersteiger-supported-family"
@@ -377,7 +429,8 @@ def fp_problems(suite: Suite) -> list[Problem]:
                 # optional suite filter and the expected/reference answer we
                 # record. Files are tiny so reading each is cheap.
                 expected = _status_of(p)
-                if suite.status is not None and expected != suite.status:
+                if (suite.keep_problems_with_status is not None
+                        and expected != suite.keep_problems_with_status):
                     continue
                 out.append({"family": family, "benchmark": str(rel), "path": p,
                             "expected_status": expected})
