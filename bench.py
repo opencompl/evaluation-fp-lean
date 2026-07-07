@@ -94,7 +94,11 @@ SUITES: dict[str, Suite] = {
         families=["lt", "gt", "eq", "abs", "add", "sub", "mul", "div",
                   "fma", "max", "min", "rem", "sqrt", "toIntegral"],
         status="unsat",
-        tools=_LEAN_TOOLS,
+        # bitwuzla + the two fplean variants of interest; fplean-nonancanon is
+        # omitted -- it is visually identical to fplean on these single-op QF_FP
+        # problems (already hidden from the cactus curve) so running it just
+        # burns a third of the fplean budget for a redundant point.
+        tools=["bitwuzla", "fplean", "fplean-nokernel"],
         stratified=True,
     ),
     "wintersteiger-supported-family": Suite(
