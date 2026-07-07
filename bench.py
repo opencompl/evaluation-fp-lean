@@ -309,9 +309,15 @@ def tool_command(tool: ToolName, path: pathlib.Path, timeout_sec: int) -> list[s
         # match the harness limit so it isn't cut off before bitwuzla is.
         # --maxHeartbeats is raised far above the default (200000) so that simp
         # preprocessing isn't aborted before the wall-clock timeout is reached.
+        # --maxRecDepth is raised above the default (512) so the kernel re-check
+        # of a deep bvDecide reflection proof doesn't abort with "maximum
+        # recursion depth reached" (e.g. instcombine-small's multi-use fmul
+        # identity needs ~10k; 100000 gives ample headroom without risking a
+        # native stack overflow).
         cmd = ["lake", "env", str(FPLEAN_PATH.absolute()),
                "--timeout", str(timeout_sec),
-               "--maxHeartbeats", "9999999"]
+               "--maxHeartbeats", "9999999",
+               "--maxRecDepth", "100000"]
         if tool == "fplean-nokernel":
             # skip the Lean kernel re-check of the bvDecide reflection proof;
             # only the LRAT certificate is verified (Leanwuzla decideSmtNoKernel).
