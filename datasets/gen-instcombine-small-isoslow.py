@@ -100,7 +100,17 @@ def main() -> None:
             eb, sb = WIDTH_BY_IDENTITY[f.name]
             (dst / f.name).write_text(reparametrize(f.read_text(), eb, sb))
 
-        # Repack the tarball in place with all three families.
+        # Also derive a uniform bf16 (E8M8) tier: 2^16 values/var, so
+        # exhaustive-enumeration is feasible for the 1-var identities (~1s) and
+        # blows up on the 2-/3-var ones -- a harder enumeration tier than e5m2/e5m4.
+        bf16 = root / "bf16"
+        if bf16.exists():
+            shutil.rmtree(bf16)
+        bf16.mkdir()
+        for f in sorted(src.glob("*.smt2")):
+            (bf16 / f.name).write_text(reparametrize(f.read_text(), 8, 8))
+
+        # Repack the tarball in place with all four families.
         tmp_tar = work / "instcombine-small.tar.zst"
         subprocess.run(
             ["tar", "--use-compress-program=zstd", "-cf", str(tmp_tar),
@@ -108,7 +118,8 @@ def main() -> None:
             check=True)
         shutil.copyfile(tmp_tar, TARBALL)
 
-    print(f"wrote isoslow family ({len(WIDTH_BY_IDENTITY)} files, per-identity widths)")
+    n = len(WIDTH_BY_IDENTITY)
+    print(f"wrote isoslow ({n} files, per-identity widths) + bf16 ({n} files, E8M8)")
     print(f"repacked {TARBALL.relative_to(REPO)}")
 
 

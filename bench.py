@@ -134,17 +134,17 @@ SUITES: dict[str, Suite] = {
     ),
     "instcombine-small": Suite(
         # The 25 constant-free (width-parametric) InstCombine identities
-        # reparametrized to several widths. e5m2 (5 3, 256 values/var) and e5m4
-        # (5 5, 1024 values/var) are the tiny tiers where exhaustive-enumeration
-        # is near-instant. isoslow is an "iso-difficulty" tier that picks the
-        # width PER variable-count (1-var (8 16), 2-var (8 3), 3-var (5 2)) so
-        # every identity enumerates in ~25-35s -- large enough to be genuinely
-        # slow, but still terminating under a 60s timeout, so the cactus shows
-        # enumeration's exponential wall against the fast SMT tools. Regenerate
-        # with datasets/gen-instcombine-small-isoslow.py. All have 1-3 free FP
-        # variables.
+        # reparametrized to four widths (100 files). e5m2 (5 3, 256 values/var) and
+        # e5m4 (5 5, 1024 values/var) are the tiny tiers where exhaustive-
+        # enumeration is near-instant. isoslow is an "iso-difficulty" tier that
+        # picks the width PER variable-count so every identity enumerates in
+        # ~25-35s -- genuinely slow but still terminating under 60s, showing
+        # enumeration's exponential wall. bf16 (8 8, 65536 values/var) is a uniform
+        # harder tier: enumeration is feasible for the 1-var identities (~1s) and
+        # blows up on the 2-/3-var ones. Regenerate isoslow+bf16 with
+        # datasets/gen-instcombine-small-isoslow.py. All have 1-3 free FP variables.
         dataset_dir=pathlib.Path("datasets/instcombine-small"),
-        families=["e5m2", "e5m4", "isoslow"],
+        families=["e5m2", "e5m4", "isoslow", "bf16"],
         keep_problems_with_status=None,
         tools_to_run=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
         tools_to_plot=["bitwuzla", "fplean", "fplean-nokernel", "exhaustive-enumeration"],
