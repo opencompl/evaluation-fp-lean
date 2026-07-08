@@ -71,44 +71,79 @@ overridable env var). These are the exact numbers to report in the paper:
 
 | knob                 | value    | meaning                                                        |
 | -------------------- | -------: | -------------------------------------------------------------- |
-| `RUNS`               |        1 | timing runs per (tool, problem); geomean-averaged if >1        |
+| `RUNS`               |        1 | timing runs per (tool, problem); per-problem geomean-averaged if >1, and a problem must solve in *every* run to count |
 | `TIMEOUT_SEC`        |       60 | wall-clock limit per solve (also passed to leanwuzla `--timeout`) |
 | `MEMOUT_MB`          |     8000 | per-solve memory limit (8 GB); an active watchdog kills on breach |
-| `NPROC`              |        6 | problems solved in parallel (harness process pool)             |
-| `SEED` (`bench.SEED`)|       42 | the SMT-LIB / SMT-COMP sampling seed (fixes suite (a)'s sample) |
+| `NPROC`              |       14 | problems solved in parallel (harness process pool). ≤ the 16 physical cores of the Ryzen 9 9950X, so recorded per-problem timings stay uncontended/trustworthy |
+| `SEED` (`bench.SEED`)|       42 | the SMT-LIB sampling seed (fixes suite (a)'s stratified sample) |
 
 The two suites, run back to back:
 
-**(a) `wintersteiger-supported-family`** — `--guid
-wintersteiger-supported-family-sample`, `--nproblems 2000` (`NPROBLEMS`, the
-default). A deterministic **2000-problem sample (seed 42)** of the **11,464**
-unsat, fplean-supported QF_FP `wintersteiger` problems (the 8 operators `abs`,
-`add`, `div`, `eq`, `gt`, `lt`, `mul`, `sub`, unsat instances — see **Benchmarks**).
-Tools: **bitwuzla, fplean, fplean-nokernel** (3 tools × 2000 = 6000 datapoints).
+**(a) `smtlib-rand`** — `--guid smtlib-rand`, `--nproblems 4000` (`NPROBLEMS`, the
+default). A **stratified, uniform-per-family** sample across **all 8 top-level
+SMT-LIB `QF_FP` families**, not just `wintersteiger`. QF_FP is ~99 %
+`wintersteiger` (39,994 of 40,406 files), so a flat sample would miss the small
+real-world families; stratification makes `NPROBLEMS` a **per-family cap**, i.e.
+each family contributes `min(4000, family-size)`. Only `wintersteiger` exceeds the
+cap (capped at 4000); the other 7 families are taken **in full** (412 files:
+griggio 214, 20210211-Vector 91, schanda 44, ramalho 36,
+20190429-UltimateAutomizer 24, 20170501-Heizmann 2, 20230321-UltimateAutomizer 1),
+for **4,412 files** total. The sample keeps **sat, unsat, and unknown** instances
+(it is a coverage survey, not an unsat-only oracle set), so the cactus counts every
+solve — sat *or* unsat — that does not contradict the declared `(set-info :status)`.
+Deterministic (seed 42). Tools: **bitwuzla, fplean, fplean-nokernel**
+(3 tools × 4,412 = 13,236 datapoints).
 
-**(b) `instcombine-small`** — `--guid instcombine-small`, **all 50 problems**
+**(b) `instcombine-small`** — `--guid instcombine-small`, **all 100 problems**
 (this suite ignores `NPROBLEMS`): the 25 constant-free, width-parametric LLVM
-InstCombine identities reparametrized to two tiny minifloat widths, **E5M2**
-(`FloatingPoint 5 3`, 256 values/var) and **E5M4** (`FloatingPoint 5 5`, 1024
-values/var), 25 each. Each is an `unsat` equivalence check (`:status unsat`), so
-they double as a **soundness** test. Tools: **bitwuzla, fplean, fplean-nokernel,
-exhaustive-enumeration** (4 tools × 50 = 200 datapoints); this is the only paper
-suite where `exhaustive-enumeration` runs, since ≤2 free FP variables make brute
-enumeration feasible (3-variable E5M4 cases time out).
+InstCombine identities reparametrized to **four** minifloat width tiers, 25 each —
+**E5M2** (`FloatingPoint 5 3`, 256 values/var), **E5M4** (`FloatingPoint 5 5`,
+1024 values/var), **isoslow** (a per-identity width calibrated so every identity's
+enumeration is slow-but-terminating), and **bf16** (`FloatingPoint 8 8`, 65 536
+values/var — a uniform harder-enum tier that blows up on the 2-/3-variable
+identities). Each is an `unsat` equivalence check (`:status unsat`), so they double
+as a **soundness** test. Tools: **bitwuzla, fplean, fplean-nokernel,
+exhaustive-enumeration** (the 3 SMT tools run all 100; this is the only paper suite
+where `exhaustive-enumeration` runs, and it solves the tiers where brute
+enumeration over the value domain is feasible).
+
+### Sound SAT handling (fp-lean)
+
+fp-lean is fundamentally a *proof / unsat* solver: it bit-blasts via `bv_decide`,
+which on a **sat** goal returns a candidate counterexample. Because `bv_decide`
+abstracts the FP field projections (`.sign/.ex/.sig`) it cannot bit-blast, that
+model is flagged "potentially spurious" and it cannot itself certify `sat`. Earlier
+these ~all surfaced as *errors*. As of leanwuzla `fp`-branch commit `2c7cf25`,
+`fplean` instead **reconstructs** a concrete assignment for each goal binder from
+the counterexample and **validates** it by native-evaluating the *proven-correct*
+fp-lean semantics at that point (the same `Decidable`/`native_decide` machinery the
+exhaustive enumerator uses): a model that genuinely satisfies the asserts is
+reported as sound `sat`, a spurious one stays `unknown`. This is what lets `fplean`
+score real `sat` solves on suite (a), and it **cannot produce an unsound `sat`**
+(the witness is checked, modulo `Lean.ofReduceBool`). The feature is entirely in
+leanwuzla — **no fp-lean changes** — and headline profiles keep the unproven
+NaN-canonicalization axiom **off** (`--disable-fp-normalize`).
 
 ### How each tool is invoked
 
 - **bitwuzla** — `bitwuzla <problem.smt2>` (image build uses `./configure.py
-  --fpexp`, required to parse the E5M2/E5M4 minifloats and other non-standard
-  formats).
+  --fpexp`, required to parse the E5M2/E5M4/isoslow/bf16 minifloats and other
+  non-standard formats).
 - **fplean** — `lake env leanwuzla --timeout <TIMEOUT_SEC> --maxHeartbeats
-  9999999 <problem.smt2>`, from the `leanwuzla` project root. Bit-blasts to SAT
-  via `bv_decide` and re-checks the reflection proof in the Lean kernel.
+  9999999 --maxRecDepth 100000 --disable-fp-normalize <problem.smt2>`, from the
+  `leanwuzla` project root. Bit-blasts via `bv_decide` and **re-checks the
+  reflection proof in the Lean kernel**; `--disable-fp-normalize` keeps the
+  unproven NaN-canonicalization axiom off (headline results must not rest on a new
+  axiom). On a sat goal it reconstructs+validates the counterexample (see **Sound
+  SAT handling**).
 - **fplean-nokernel** — same, plus `--disableKernel`: only the LRAT certificate
-  is verified, skipping the kernel re-check (`decideSmtNoKernel`).
+  is verified, skipping the kernel re-check (`decideSmtNoKernel`). Runs
+  informationally — it has a known `fp.fma` soundness bug, so `fplean` is the
+  blocking/reported profile.
 - **exhaustive-enumeration** — same, plus `--exhaustive-enumeration`: decides the
   goal by native-evaluating a `Decidable` instance over *all* FP values instead
-  of `bv_decide` (only feasible for tiny bit-widths).
+  of `bv_decide` (axiom-free by construction; only feasible for tiny bit-widths,
+  so it runs on suite (b) only).
 
 ### Outputs
 
@@ -121,61 +156,75 @@ Each suite writes to `runresults/<guid>/`:
 - `outputs/plots/cactus/cactus.{pdf,png}` — the cactus plot (cumulative solve
   time vs. # problems solved, log-x).
 - `outputs/plots/cactus/cactus.tex` — per-tool LaTeX macros, **prefixed with the
-  suite name** (`\WintersteigerSupportedFamily…`, `\InstcombineSmall…`) so both
-  files can be `\input` together. Macros include `Num{Unsat,Sat,Timeout,Memout,
+  suite name** (`\SmtlibRand…`, `\InstcombineSmall…`) so both files can be `\input`
+  together. Macros include `NumSolved<Tool>` and `Num{Unsat,Sat,Timeout,Memout,
   Errors,Checked}<Tool>`, `NumDisagreementsWithExpectedStatus<Tool>` and
   `PercentDisagreementsWithExpectedStatus<Tool>` (the unsoundness rate: a definite
   verdict contradicting the oracle `:status`), `GeomeanTime<Tool>`, and pairwise
-  `Speedup<A>Over<B>`.
+  `Speedup<A>Over<B>`. `NumSolved` = sat **or** unsat verdicts that do not
+  contradict the oracle.
 
 Concretely:
 
 ```
-runresults/wintersteiger-supported-family-sample/outputs/plots/cactus/
+runresults/smtlib-rand/outputs/plots/cactus/
 runresults/instcombine-small/outputs/plots/cactus/
 ```
 
 ### Latest measured results
 
-Regenerated by the run above (git `f973a7a`, seed 42, TIMEOUT_SEC 60, MEMOUT_MB
-8000, NPROC 6, RUNS 1) on an **AMD Ryzen 9 9950X 16-Core** (32 threads, 123.5 GB,
-inside the container). `unsat` = solved (all these problems are unsat);
-`err` = ran but gave no verdict (fplean abstracts an unsupported subterm, or
-enumeration is infeasible); `t/o` = hit the 60 s wall limit; `unsound` = a
-definite verdict that contradicts the oracle `:status`. These are the numbers
-the `cactus.tex` macros encode.
+Regenerated by the run above (git `6aa707b`, seed 42, per-family cap 4000,
+TIMEOUT_SEC 60, MEMOUT_MB 8000, NPROC 14, RUNS 1) on an **AMD Ryzen 9 9950X
+16-Core** (32 threads, 123.5 GB, inside the container). `solved` = a definite
+verdict (**sat or unsat**) that does not contradict the oracle `:status`; the
+`sat`/`unsat` columns split it. `err` = ran but gave no verdict (fplean abstracts
+an unsupported subterm, a parse/unsupported-op failure, or a spurious
+counterexample that stays `unknown`); `t/o` = hit the 60 s wall limit; `unsound` =
+a definite verdict that contradicts the oracle. These are the numbers the
+`cactus.tex` macros encode.
 
-**(a) `wintersteiger-supported-family`** — 2000-problem sample, 3 tools:
+**(a) `smtlib-rand`** — 4,412-file stratified sample (sat + unsat, all 8 QF_FP
+families), 3 tools:
 
-| tool             | unsat | err | t/o | unsound     | geomean |
-| ---------------- | ----: | --: | --: | ----------- | ------: |
-| bitwuzla         |  2000 |   0 |   0 | 0 (0.00 %)  |    58 ms |
-| fplean           |  1999 |   1 |   0 | 0 (0.00 %)  |   1.38 s |
-| fplean-nokernel  |  1999 |   0 |   0 | **1 (0.05 %)** |   1.08 s |
+| tool             | solved | unsat |  sat  | err | t/o | unsound    | geomean |
+| ---------------- | -----: | ----: | ----: | --: | --: | ---------- | ------: |
+| bitwuzla         |  4,345 | 2,152 | 2,193 |   0 |  67 | 0 (0.00 %) |   54 ms |
+| **fplean**       |  4,005 | 1,906 | 2,099 | 172 | 235 | 0 (0.00 %) |  1.83 s |
+| fplean-nokernel  |  4,151 | 2,044 | 2,107 | 164 |  97 | 0 (0.00 %) |  1.72 s |
 
-**(b) `instcombine-small`** — all 50 problems (25 E5M2 + 25 E5M4), 4 tools:
+**(b) `instcombine-small`** — all 100 problems (25 each E5M2 / E5M4 / isoslow /
+bf16; all `unsat` equivalence checks), 4 tools:
 
-| tool                   | unsat | err | t/o | unsound    | geomean |
-| ---------------------- | ----: | --: | --: | ---------- | ------: |
-| bitwuzla               |    50 |   0 |   0 | 0 (0.00 %) |    57 ms |
-| fplean                 |    44 |   6 |   0 | 0 (0.00 %) |   1.00 s |
-| fplean-nokernel        |    46 |   4 |   0 | 0 (0.00 %) |   822 ms |
-| exhaustive-enumeration |    44 |   4 |   2 | 0 (0.00 %) |   2.13 s |
+| tool                   | solved | unsat | err | t/o | unsound    | geomean |
+| ---------------------- | -----: | ----: | --: | --: | ---------- | ------: |
+| bitwuzla               |    100 |   100 |   0 |   0 | 0 (0.00 %) |   25 ms |
+| fplean                 |    100 |   100 |   0 |   0 | 0 (0.00 %) |  1.35 s |
+| fplean-nokernel        |    100 |   100 |   0 |   0 | 0 (0.00 %) |  1.06 s |
+| exhaustive-enumeration |     81 |    81 |   0 |  19 | 0 (0.00 %) |  3.33 s |
 
-bitwuzla is ~18–38× faster (geomean) but the fp-lean tools are *proof-producing*.
-`fplean` solves fewer than `fplean-nokernel` on the instcombine identities only
-because more of its abstracted-counterexample cases surface as errors rather than
-as (unsound) answers.
+Takeaways for the evaluation text:
 
-**Soundness finding — the kernel re-check catches a real unsound answer.** On the
-one wintersteiger problem `div/div-has-no-other-solution-10409.smt2`, the
-no-kernel path emits an unsound `sat` (deterministically), whereas the
-kernel-checked `fplean` *detects the counterexample is spurious* — it abstracted
-unsupported significand/exponent subterms — and safely errors out instead. This
-is the sole disagreement in the whole run and is the concrete cost of
-`--disableKernel`: 1/2000 unsound here (`\WintersteigerSupportedFamilyPercent
-DisagreementsWithExpectedStatusFpleannokernel` = 0.05). Every other tool/suite is
-0.00 % unsound.
+- **Sound SAT at scale.** `fplean` solves **4,005 / 4,412 (91 %)** of the stratified
+  QF_FP sample, of which **2,099 are sound `sat`** solves — landing just behind
+  bitwuzla's 4,345 and tracking it closely on *both* sat and unsat. Before the
+  countermodel-reconstruction work these sat cases were errors; the feature is what
+  makes fp-lean competitive on the sat half of a real-world QF_FP distribution.
+- **Zero unsound verdicts** across all 4,512 problems (both suites, every tool):
+  every `sat`/`unsat` that fp-lean commits to agrees with the oracle. fp-lean's
+  soundness is a *proof* obligation (kernel-checked bvDecide reflection for unsat;
+  native-validated witness for sat), not an empirical observation.
+- **Cost of the kernel re-check.** `fplean` (kernel on) vs `fplean-nokernel` (kernel
+  off) is the price of full verification: ~146 fewer solves (4,005 vs 4,151, from a
+  slightly larger timeout tail) and ~6 % higher geomean (1.83 s vs 1.72 s) on
+  suite (a). `fplean-nokernel` is reported informationally only (known `fp.fma`
+  soundness bug), so the *sound* headline solver is `fplean`.
+- **bitwuzla vs fp-lean.** bitwuzla is ~34× faster by geomean (54 ms vs 1.83 s) and
+  solves more, but the fp-lean tools are *proof-producing* against a mechanized
+  IEEE-754 semantics — a different point on the trust/speed trade-off.
+- **Enumeration's wall.** On suite (b), the three SMT tools solve all 100 identities;
+  `exhaustive-enumeration` solves 81 and times out on the 19 multi-variable bf16
+  (E8M8, 65 536 values/var) cases — the intended demonstration that brute
+  enumeration is exponential in the value domain while the SMT tools are not.
 
 ## Solvers
 
