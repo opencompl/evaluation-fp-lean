@@ -242,9 +242,11 @@ DEFAULT_SUITE: str = "wintersteiger-supported-family"
 tool2color: dict[ToolName, str] = {
     "bitwuzla": "#FFAB40", "fplean": "#2E7D32", "fplean-nokernel": "#1565C0",
     "fplean-nancanon": "#C62828", "exhaustive-enumeration": "#8E24AA"}
+# Display labels for the plots. Our solver is presented anonymously as "ours"
+# (never by its internal name) so no tool identity leaks into paper figures.
 tool2label: dict[ToolName, str] = {
-    "bitwuzla": "Bitwuzla", "fplean": "FP-Lean", "fplean-nokernel": "FP-Lean (no kernel)",
-    "fplean-nancanon": "FP-Lean + NaN-canon", "exhaustive-enumeration": "Exhaustive enum"}
+    "bitwuzla": "Bitwuzla", "fplean": "ours", "fplean-nokernel": "ours (nokernel)",
+    "fplean-nancanon": "ours (NaN-canon)", "exhaustive-enumeration": "Exhaustive enum"}
 
 
 class Problem(TypedDict):

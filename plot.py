@@ -28,9 +28,18 @@ CACTUS_HEIGHT_IN: float = 2.3
 # plotted are still reported in the summary and the LaTeX macros.
 
 
+# Our solver is anonymized as "Ours" in LaTeX macro names too, so no tool
+# identity leaks into the paper's \input'd macros.
+_TEXNAME_OVERRIDE = {
+    "fplean": "Ours", "fplean-nokernel": "OursNokernel",
+    "fplean-nancanon": "OursNancanon"}
+
+
 def _texname(tool: str) -> str:
     """Letters-only, capitalized form of a tool name for use in LaTeX
     \\newcommand names (which may not contain hyphens or digits)."""
+    if tool in _TEXNAME_OVERRIDE:
+        return _TEXNAME_OVERRIDE[tool]
     return re.sub(r"[^A-Za-z]", "", tool).capitalize()
 
 
@@ -295,7 +304,7 @@ def plot_cactus(indir: pathlib.Path, outdir: pathlib.Path, opts: argparse.Namesp
             f"{pfx}GeomeanMs{cap}":    f"{s['geomean_ms']:.1f}",
         }
         lines.append("")
-        lines.append(f"%% {tool}")
+        lines.append(f"%% {bench.tool2label[tool]}")
         lines.extend(bench.format_newcommand(k, v) for k, v in per_tool.items())
 
     speedups = {
